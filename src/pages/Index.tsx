@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DecisionEntry } from '@/components/DecisionEntry';
 import { CriteriaWizard } from '@/components/CriteriaWizard';
+import { CriteriaEvaluation } from '@/components/CriteriaEvaluation';
 import { ResultsDashboard } from '@/components/ResultsDashboard';
-import { DecisionState, Criterion } from '@/types/decision';
+import { DecisionState, Criterion, CriterionEvaluation as CriterionEval } from '@/types/decision';
 import { calculatePosterior } from '@/lib/bayesian';
 import { Brain } from 'lucide-react';
 
-const STEPS = ['decision', 'criteria', 'results'] as const;
+const STEPS = ['decision', 'criteria', 'evaluation', 'results'] as const;
 type Step = typeof STEPS[number];
 
 const Index = () => {
@@ -16,6 +17,7 @@ const Index = () => {
     decision: '',
     category: '',
     criteria: [],
+    criteriaEvaluations: [],
     initialConfidence: 50,
     evidence: [],
     posteriorProbability: 50,
@@ -23,14 +25,12 @@ const Index = () => {
   });
 
   const currentStepIndex = STEPS.indexOf(step);
-  const canGoBack = currentStepIndex > 0;
-  const canGoForward = step === 'decision' ? decisionState.decision.trim().length > 0 : true;
 
   const goToNextStep = () => {
     const nextIndex = currentStepIndex + 1;
     if (nextIndex < STEPS.length) {
       if (STEPS[nextIndex] === 'results') {
-        // Calculate posterior with Monte Carlo sampling before showing results
+        // Calculate posterior with evaluations
         const { posterior, credibleInterval, samples } = calculatePosterior(
           decisionState.initialConfidence,
           decisionState.evidence
@@ -63,11 +63,17 @@ const Index = () => {
     goToNextStep();
   };
 
+  const handleEvaluationsSubmit = (evaluations: CriterionEval[]) => {
+    setDecisionState(prev => ({ ...prev, criteriaEvaluations: evaluations }));
+    goToNextStep();
+  };
+
   const handleReset = () => {
     setDecisionState({
       decision: '',
       category: '',
       criteria: [],
+      criteriaEvaluations: [],
       initialConfidence: 50,
       evidence: [],
       posteriorProbability: 50,
@@ -147,6 +153,24 @@ const Index = () => {
                 decision={decisionState.decision}
                 initialCriteria={decisionState.criteria}
                 onSubmit={handleCriteriaSubmit}
+                onBack={goToPrevStep}
+              />
+            </motion.div>
+          )}
+
+          {step === 'evaluation' && (
+            <motion.div
+              key="evaluation"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <CriteriaEvaluation
+                decision={decisionState.decision}
+                criteria={decisionState.criteria}
+                initialEvaluations={decisionState.criteriaEvaluations}
+                onSubmit={handleEvaluationsSubmit}
                 onBack={goToPrevStep}
               />
             </motion.div>
