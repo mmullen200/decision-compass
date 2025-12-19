@@ -1,9 +1,11 @@
+import { useEffect } from 'react';
 import { DecisionState } from '@/types/decision';
 import { Button } from '@/components/ui/button';
 import { getConfidenceLabel, getConfidenceColor, generateDistributionData } from '@/lib/bayesian';
-import { ChevronLeft, RotateCcw, TrendingUp, TrendingDown, Minus, Lightbulb, Download } from 'lucide-react';
+import { ChevronLeft, RotateCcw, TrendingUp, TrendingDown, Minus, Lightbulb, Sparkles, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { useDecisionAnalysis } from '@/hooks/useDecisionAnalysis';
 
 interface ResultsDashboardProps {
   state: DecisionState;
@@ -12,6 +14,11 @@ interface ResultsDashboardProps {
 }
 
 export function ResultsDashboard({ state, onBack, onReset }: ResultsDashboardProps) {
+  const { analysis, isLoading, analyzeDecision } = useDecisionAnalysis();
+
+  useEffect(() => {
+    analyzeDecision(state);
+  }, []);
   const { decision, initialConfidence, posteriorProbability, credibleInterval, evidence } = state;
 
   const priorLabel = getConfidenceLabel(initialConfidence);
@@ -211,6 +218,48 @@ export function ResultsDashboard({ state, onBack, onReset }: ResultsDashboardPro
           <div className="text-center py-8 text-muted-foreground">
             <p>No evidence was provided. The posterior equals the prior.</p>
             <p className="text-sm mt-2">Add evidence to see how it affects your confidence.</p>
+          </div>
+        )}
+      </motion.div>
+
+      {/* AI Analysis */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.45 }}
+        className="glass-card rounded-2xl p-8 mb-8"
+      >
+        <div className="flex items-start gap-4 mb-6">
+          <div className="p-3 rounded-xl bg-primary/10 border border-primary/20">
+            <Sparkles className="w-6 h-6 text-primary" />
+          </div>
+          <div>
+            <h3 className="font-bold text-lg mb-1">AI-Powered Insights</h3>
+            <p className="text-muted-foreground text-sm">Analysis powered by Gemini</p>
+          </div>
+        </div>
+
+        {isLoading && (
+          <div className="flex items-center justify-center py-8 gap-3">
+            <Loader2 className="w-5 h-5 animate-spin text-primary" />
+            <span className="text-muted-foreground">Analyzing your decision...</span>
+          </div>
+        )}
+
+        {analysis && !isLoading && (
+          <div className="prose prose-sm prose-invert max-w-none">
+            <div className="whitespace-pre-wrap text-foreground/90 leading-relaxed">
+              {analysis}
+            </div>
+          </div>
+        )}
+
+        {!analysis && !isLoading && (
+          <div className="text-center py-6">
+            <Button onClick={() => analyzeDecision(state)} variant="outline">
+              <Sparkles className="w-4 h-4 mr-2" />
+              Generate AI Analysis
+            </Button>
           </div>
         )}
       </motion.div>
