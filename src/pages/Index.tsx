@@ -2,14 +2,13 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DecisionEntry } from '@/components/DecisionEntry';
 import { CriteriaWizard } from '@/components/CriteriaWizard';
-import { ConfidenceSlider } from '@/components/ConfidenceSlider';
 import { EvidenceWizard } from '@/components/EvidenceWizard';
 import { ResultsDashboard } from '@/components/ResultsDashboard';
 import { DecisionState, EvidenceItem, Criterion } from '@/types/decision';
 import { calculatePosterior } from '@/lib/bayesian';
 import { Brain } from 'lucide-react';
 
-const STEPS = ['decision', 'criteria', 'confidence', 'evidence', 'results'] as const;
+const STEPS = ['decision', 'criteria', 'evidence', 'results'] as const;
 type Step = typeof STEPS[number];
 
 const Index = () => {
@@ -55,13 +54,8 @@ const Index = () => {
     }
   };
 
-  const handleDecisionSubmit = (decision: string) => {
-    setDecisionState(prev => ({ ...prev, decision }));
-    goToNextStep();
-  };
-
-  const handleConfidenceSubmit = (confidence: number) => {
-    setDecisionState(prev => ({ ...prev, initialConfidence: confidence }));
+  const handleDecisionSubmit = (decision: string, confidence: number) => {
+    setDecisionState(prev => ({ ...prev, decision, initialConfidence: confidence }));
     goToNextStep();
   };
 
@@ -139,7 +133,11 @@ const Index = () => {
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.3 }}
             >
-              <DecisionEntry onSubmit={handleDecisionSubmit} initialValue={decisionState.decision} />
+              <DecisionEntry 
+                onSubmit={handleDecisionSubmit} 
+                initialValue={decisionState.decision}
+                initialConfidence={decisionState.initialConfidence}
+              />
             </motion.div>
           )}
 
@@ -155,23 +153,6 @@ const Index = () => {
                 decision={decisionState.decision}
                 initialCriteria={decisionState.criteria}
                 onSubmit={handleCriteriaSubmit}
-                onBack={goToPrevStep}
-              />
-            </motion.div>
-          )}
-
-          {step === 'confidence' && (
-            <motion.div
-              key="confidence"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <ConfidenceSlider
-                decision={decisionState.decision}
-                initialValue={decisionState.initialConfidence}
-                onSubmit={handleConfidenceSubmit}
                 onBack={goToPrevStep}
               />
             </motion.div>
