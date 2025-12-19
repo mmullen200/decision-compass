@@ -1,20 +1,28 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowRight, Sparkles } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Slider } from '@/components/ui/slider';
+import { ArrowRight, Sparkles, Gauge } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { getConfidenceLabel, getConfidenceColor } from '@/lib/bayesian';
 
 interface DecisionEntryProps {
-  onSubmit: (decision: string) => void;
+  onSubmit: (decision: string, confidence: number) => void;
   initialValue?: string;
+  initialConfidence?: number;
 }
 
-export function DecisionEntry({ onSubmit, initialValue = '' }: DecisionEntryProps) {
+export function DecisionEntry({ onSubmit, initialValue = '', initialConfidence = 50 }: DecisionEntryProps) {
   const [decision, setDecision] = useState(initialValue);
+  const [confidence, setConfidence] = useState(initialConfidence);
+
+  const hasDecision = decision.trim().length > 0;
+  const confidenceLabel = getConfidenceLabel(confidence);
+  const confidenceColorClass = getConfidenceColor(confidence);
 
   const handleSubmit = () => {
-    if (decision.trim()) {
-      onSubmit(decision.trim());
+    if (hasDecision) {
+      onSubmit(decision.trim(), confidence);
     }
   };
 
@@ -57,6 +65,63 @@ export function DecisionEntry({ onSubmit, initialValue = '' }: DecisionEntryProp
         />
       </motion.div>
 
+      <AnimatePresence>
+        {hasDecision && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+            animate={{ opacity: 1, height: 'auto', marginBottom: 32 }}
+            exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+            className="overflow-hidden"
+          >
+            <div className="glass-card rounded-2xl p-8">
+              <div className="flex items-center gap-2 mb-6">
+                <Gauge className="w-5 h-5 text-accent" />
+                <span className="text-sm font-mono text-accent">INITIAL CONFIDENCE (Prior Probability)</span>
+              </div>
+
+              <div className="text-center mb-8">
+                <motion.div
+                  key={confidence}
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: 'spring', stiffness: 300 }}
+                  className="mb-2"
+                >
+                  <span className={`text-6xl font-mono font-bold ${confidenceColorClass}`}>
+                    {Math.round(confidence)}
+                  </span>
+                  <span className="text-3xl font-mono text-muted-foreground">%</span>
+                </motion.div>
+                <p className={`text-lg font-medium ${confidenceColorClass}`}>
+                  {confidenceLabel} Confidence
+                </p>
+              </div>
+
+              <div className="px-4">
+                <Slider
+                  value={[confidence]}
+                  onValueChange={(values) => setConfidence(values[0])}
+                  min={1}
+                  max={99}
+                  step={1}
+                  className="mb-4"
+                />
+                <div className="flex justify-between text-xs font-mono text-muted-foreground">
+                  <span>Unlikely (1%)</span>
+                  <span>Uncertain (50%)</span>
+                  <span>Certain (99%)</span>
+                </div>
+              </div>
+
+              <p className="text-sm text-muted-foreground text-center mt-6">
+                Before analyzing evidence, how confident are you that this is the right choice?
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -65,12 +130,12 @@ export function DecisionEntry({ onSubmit, initialValue = '' }: DecisionEntryProp
       >
         <Button
           onClick={handleSubmit}
-          disabled={!decision.trim()}
+          disabled={!hasDecision}
           size="xl"
           variant="glow"
           className="group"
         >
-          Set Initial Confidence
+          Define Criteria
           <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
         </Button>
       </motion.div>
