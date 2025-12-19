@@ -5,6 +5,7 @@ export interface DecisionState {
   evidence: EvidenceItem[];
   posteriorProbability: number;
   credibleInterval: [number, number];
+  samples?: number[];
 }
 
 export interface EvidenceItem {

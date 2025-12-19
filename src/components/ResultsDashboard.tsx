@@ -19,7 +19,7 @@ export function ResultsDashboard({ state, onBack, onReset }: ResultsDashboardPro
   useEffect(() => {
     analyzeDecision(state);
   }, []);
-  const { decision, initialConfidence, posteriorProbability, credibleInterval, evidence } = state;
+  const { decision, initialConfidence, posteriorProbability, credibleInterval, evidence, samples } = state;
 
   const priorLabel = getConfidenceLabel(initialConfidence);
   const posteriorLabel = getConfidenceLabel(posteriorProbability);
@@ -28,7 +28,8 @@ export function ResultsDashboard({ state, onBack, onReset }: ResultsDashboardPro
   const confidenceChange = posteriorProbability - initialConfidence;
   const changeDirection = confidenceChange > 2 ? 'up' : confidenceChange < -2 ? 'down' : 'neutral';
 
-  const distributionData = generateDistributionData(posteriorProbability, credibleInterval);
+  // Use Monte Carlo samples for distribution if available
+  const distributionData = generateDistributionData(posteriorProbability, credibleInterval, samples);
 
   // Find top contributors
   const sortedEvidence = [...evidence].sort((a, b) => {
