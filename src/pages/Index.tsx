@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DecisionEntry } from '@/components/DecisionEntry';
+import { CriteriaWizard } from '@/components/CriteriaWizard';
 import { ConfidenceSlider } from '@/components/ConfidenceSlider';
 import { EvidenceWizard } from '@/components/EvidenceWizard';
 import { ResultsDashboard } from '@/components/ResultsDashboard';
-import { DecisionState, EvidenceItem } from '@/types/decision';
+import { DecisionState, EvidenceItem, Criterion } from '@/types/decision';
 import { calculatePosterior } from '@/lib/bayesian';
-import { Brain, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Brain } from 'lucide-react';
 
-const STEPS = ['decision', 'confidence', 'evidence', 'results'] as const;
+const STEPS = ['decision', 'criteria', 'confidence', 'evidence', 'results'] as const;
 type Step = typeof STEPS[number];
 
 const Index = () => {
@@ -17,6 +17,7 @@ const Index = () => {
   const [decisionState, setDecisionState] = useState<DecisionState>({
     decision: '',
     category: '',
+    criteria: [],
     initialConfidence: 50,
     evidence: [],
     posteriorProbability: 50,
@@ -69,10 +70,16 @@ const Index = () => {
     goToNextStep();
   };
 
+  const handleCriteriaSubmit = (criteria: Criterion[]) => {
+    setDecisionState(prev => ({ ...prev, criteria }));
+    goToNextStep();
+  };
+
   const handleReset = () => {
     setDecisionState({
       decision: '',
       category: '',
+      criteria: [],
       initialConfidence: 50,
       evidence: [],
       posteriorProbability: 50,
@@ -133,6 +140,23 @@ const Index = () => {
               transition={{ duration: 0.3 }}
             >
               <DecisionEntry onSubmit={handleDecisionSubmit} initialValue={decisionState.decision} />
+            </motion.div>
+          )}
+
+          {step === 'criteria' && (
+            <motion.div
+              key="criteria"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <CriteriaWizard
+                decision={decisionState.decision}
+                initialCriteria={decisionState.criteria}
+                onSubmit={handleCriteriaSubmit}
+                onBack={goToPrevStep}
+              />
             </motion.div>
           )}
 

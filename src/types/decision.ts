@@ -1,6 +1,15 @@
+export interface Criterion {
+  id: string;
+  name: string;
+  importance: number; // 1-100, used as prior weight
+  description?: string;
+  isAISuggested?: boolean;
+}
+
 export interface DecisionState {
   decision: string;
   category: string;
+  criteria: Criterion[];
   initialConfidence: number;
   evidence: EvidenceItem[];
   posteriorProbability: number;
