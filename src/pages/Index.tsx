@@ -2,13 +2,12 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DecisionEntry } from '@/components/DecisionEntry';
 import { CriteriaWizard } from '@/components/CriteriaWizard';
-import { EvidenceWizard } from '@/components/EvidenceWizard';
 import { ResultsDashboard } from '@/components/ResultsDashboard';
-import { DecisionState, EvidenceItem, Criterion } from '@/types/decision';
+import { DecisionState, Criterion } from '@/types/decision';
 import { calculatePosterior } from '@/lib/bayesian';
 import { Brain } from 'lucide-react';
 
-const STEPS = ['decision', 'criteria', 'evidence', 'results'] as const;
+const STEPS = ['decision', 'criteria', 'results'] as const;
 type Step = typeof STEPS[number];
 
 const Index = () => {
@@ -56,11 +55,6 @@ const Index = () => {
 
   const handleDecisionSubmit = (decision: string, confidence: number) => {
     setDecisionState(prev => ({ ...prev, decision, initialConfidence: confidence }));
-    goToNextStep();
-  };
-
-  const handleEvidenceSubmit = (evidence: EvidenceItem[]) => {
-    setDecisionState(prev => ({ ...prev, evidence }));
     goToNextStep();
   };
 
@@ -153,24 +147,6 @@ const Index = () => {
                 decision={decisionState.decision}
                 initialCriteria={decisionState.criteria}
                 onSubmit={handleCriteriaSubmit}
-                onBack={goToPrevStep}
-              />
-            </motion.div>
-          )}
-
-          {step === 'evidence' && (
-            <motion.div
-              key="evidence"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <EvidenceWizard
-                decision={decisionState.decision}
-                category={decisionState.category}
-                initialEvidence={decisionState.evidence}
-                onSubmit={handleEvidenceSubmit}
                 onBack={goToPrevStep}
               />
             </motion.div>
