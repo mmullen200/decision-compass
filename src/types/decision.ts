@@ -6,10 +6,18 @@ export interface Criterion {
   isAISuggested?: boolean;
 }
 
+export interface CriterionEvaluation {
+  criterionId: string;
+  supportsDecision: boolean; // true = supports decision, false = supports status quo
+  strength: number; // 1-100, very weakly to very strongly
+  confidence: number; // 1-100, not very sure to very sure
+}
+
 export interface DecisionState {
   decision: string;
   category: string;
   criteria: Criterion[];
+  criteriaEvaluations: CriterionEvaluation[];
   initialConfidence: number;
   evidence: EvidenceItem[];
   posteriorProbability: number;
