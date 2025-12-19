@@ -31,8 +31,8 @@ const Index = () => {
     const nextIndex = currentStepIndex + 1;
     if (nextIndex < STEPS.length) {
       if (STEPS[nextIndex] === 'results') {
-        // Calculate posterior before showing results
-        const { posterior, credibleInterval } = calculatePosterior(
+        // Calculate posterior with Monte Carlo sampling before showing results
+        const { posterior, credibleInterval, samples } = calculatePosterior(
           decisionState.initialConfidence,
           decisionState.evidence
         );
@@ -40,6 +40,7 @@ const Index = () => {
           ...prev,
           posteriorProbability: posterior,
           credibleInterval,
+          samples,
         }));
       }
       setStep(STEPS[nextIndex]);
