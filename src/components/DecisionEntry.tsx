@@ -1,31 +1,20 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { CATEGORIES, CategoryId } from '@/types/decision';
-import { Briefcase, DollarSign, Heart, Users, GraduationCap, Compass, ArrowRight, Sparkles } from 'lucide-react';
+import { ArrowRight, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const iconMap = {
-  Briefcase,
-  DollarSign,
-  Heart,
-  Users,
-  GraduationCap,
-  Compass,
-};
-
 interface DecisionEntryProps {
-  onSubmit: (decision: string, category: CategoryId) => void;
+  onSubmit: (decision: string) => void;
   initialValue?: string;
 }
 
 export function DecisionEntry({ onSubmit, initialValue = '' }: DecisionEntryProps) {
   const [decision, setDecision] = useState(initialValue);
-  const [category, setCategory] = useState<CategoryId | ''>('');
 
   const handleSubmit = () => {
-    if (decision.trim() && category) {
-      onSubmit(decision.trim(), category);
+    if (decision.trim()) {
+      onSubmit(decision.trim());
     }
   };
 
@@ -63,33 +52,9 @@ export function DecisionEntry({ onSubmit, initialValue = '' }: DecisionEntryProp
           value={decision}
           onChange={(e) => setDecision(e.target.value)}
           placeholder="e.g., Should I accept this job offer at a startup over my current stable position?"
-          className="text-lg leading-relaxed mb-6"
+          className="text-lg leading-relaxed"
           rows={4}
         />
-
-        <label className="block text-sm font-mono text-muted-foreground mb-4">
-          CATEGORY
-        </label>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {CATEGORIES.map((cat) => {
-            const Icon = iconMap[cat.icon as keyof typeof iconMap];
-            const isSelected = category === cat.id;
-            return (
-              <button
-                key={cat.id}
-                onClick={() => setCategory(cat.id)}
-                className={`flex items-center gap-3 p-4 rounded-xl border transition-all duration-300 ${
-                  isSelected
-                    ? 'border-primary bg-primary/10 text-primary shadow-lg shadow-primary/20'
-                    : 'border-border bg-secondary/50 hover:bg-secondary hover:border-primary/50'
-                }`}
-              >
-                <Icon className={`w-5 h-5 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
-                <span className="font-medium">{cat.label}</span>
-              </button>
-            );
-          })}
-        </div>
       </motion.div>
 
       <motion.div
@@ -100,7 +65,7 @@ export function DecisionEntry({ onSubmit, initialValue = '' }: DecisionEntryProp
       >
         <Button
           onClick={handleSubmit}
-          disabled={!decision.trim() || !category}
+          disabled={!decision.trim()}
           size="xl"
           variant="glow"
           className="group"

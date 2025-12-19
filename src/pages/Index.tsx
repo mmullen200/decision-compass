@@ -4,7 +4,7 @@ import { DecisionEntry } from '@/components/DecisionEntry';
 import { ConfidenceSlider } from '@/components/ConfidenceSlider';
 import { EvidenceWizard } from '@/components/EvidenceWizard';
 import { ResultsDashboard } from '@/components/ResultsDashboard';
-import { DecisionState, EvidenceItem, CategoryId } from '@/types/decision';
+import { DecisionState, EvidenceItem } from '@/types/decision';
 import { calculatePosterior } from '@/lib/bayesian';
 import { Brain, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -54,8 +54,8 @@ const Index = () => {
     }
   };
 
-  const handleDecisionSubmit = (decision: string, category: CategoryId) => {
-    setDecisionState(prev => ({ ...prev, decision, category }));
+  const handleDecisionSubmit = (decision: string) => {
+    setDecisionState(prev => ({ ...prev, decision }));
     goToNextStep();
   };
 
