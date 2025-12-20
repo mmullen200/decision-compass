@@ -1,5 +1,8 @@
 project_id = "anutyhusiqhundjxvztu"
 
+[functions.generate-experiments]
+verify_jwt = false
+
 [functions.analyze-decision]
 verify_jwt = false
 
