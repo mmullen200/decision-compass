@@ -1,19 +1,19 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { DecisionState } from '@/types/decision';
 import { Button } from '@/components/ui/button';
 import { calculatePosteriorFromEvaluations, getConfidenceColor, generateDistributionData } from '@/lib/bayesian';
 import { RotateCcw, FlaskConical, Trophy, Scale, ChevronRight } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, ReferenceLine } from 'recharts';
 
 interface ResultsDashboardProps {
   state: DecisionState;
   onBack: () => void;
   onReset: () => void;
+  onDesignExperiments: () => void;
 }
 
-export function ResultsDashboard({ state, onBack, onReset }: ResultsDashboardProps) {
-  const [showExperimentPrompt, setShowExperimentPrompt] = useState(false);
+export function ResultsDashboard({ state, onBack, onReset, onDesignExperiments }: ResultsDashboardProps) {
   
   const { decision, initialConfidence, criteria, criteriaEvaluations } = state;
 
@@ -208,50 +208,26 @@ export function ResultsDashboard({ state, onBack, onReset }: ResultsDashboardPro
       </motion.div>
 
       {/* Experiment Prompt */}
-      <AnimatePresence>
-        {!showExperimentPrompt ? (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ delay: 1 }}
-            className="glass-card rounded-2xl p-8 mb-8 text-center"
-          >
-            <FlaskConical className="w-10 h-10 text-accent mx-auto mb-4" />
-            <h3 className="text-xl font-bold mb-2">Want to increase your certainty?</h3>
-            <p className="text-muted-foreground mb-6">
-              We can help you design some quick experiments to gather more evidence.
-            </p>
-            <Button 
-              onClick={() => setShowExperimentPrompt(true)}
-              size="lg"
-              className="gap-2"
-            >
-              Design experiments
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-          </motion.div>
-        ) : (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="glass-card rounded-2xl p-8 mb-8 border-2 border-accent/30"
-          >
-            <FlaskConical className="w-10 h-10 text-accent mx-auto mb-4" />
-            <h3 className="text-xl font-bold mb-2 text-center">Experiment Design</h3>
-            <p className="text-muted-foreground text-center mb-4">
-              Coming soon! We'll help you design low-cost experiments to test your assumptions.
-            </p>
-            <Button 
-              onClick={() => setShowExperimentPrompt(false)}
-              variant="outline"
-              className="w-full"
-            >
-              Maybe later
-            </Button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 1 }}
+        className="glass-card rounded-2xl p-8 mb-8 text-center"
+      >
+        <FlaskConical className="w-10 h-10 text-accent mx-auto mb-4" />
+        <h3 className="text-xl font-bold mb-2">Want to increase your certainty?</h3>
+        <p className="text-muted-foreground mb-6">
+          We can help you design some quick experiments to gather more evidence.
+        </p>
+        <Button 
+          onClick={onDesignExperiments}
+          size="lg"
+          className="gap-2"
+        >
+          Design experiments
+          <ChevronRight className="w-4 h-4" />
+        </Button>
+      </motion.div>
 
       {/* Actions */}
       <motion.div

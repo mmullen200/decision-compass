@@ -1,14 +1,15 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DecisionEntry } from '@/components/DecisionEntry';
 import { CriteriaWizard } from '@/components/CriteriaWizard';
 import { CriteriaEvaluation } from '@/components/CriteriaEvaluation';
 import { ResultsDashboard } from '@/components/ResultsDashboard';
+import { ExperimentDesign } from '@/components/ExperimentDesign';
 import { DecisionState, Criterion, CriterionEvaluation as CriterionEval } from '@/types/decision';
-import { calculatePosterior } from '@/lib/bayesian';
+import { calculatePosterior, calculatePosteriorFromEvaluations } from '@/lib/bayesian';
 import { Brain } from 'lucide-react';
 
-const STEPS = ['decision', 'criteria', 'evaluation', 'results'] as const;
+const STEPS = ['decision', 'criteria', 'evaluation', 'results', 'experiments'] as const;
 type Step = typeof STEPS[number];
 
 const Index = () => {
@@ -66,6 +67,14 @@ const Index = () => {
   const handleEvaluationsSubmit = (evaluations: CriterionEval[]) => {
     setDecisionState(prev => ({ ...prev, criteriaEvaluations: evaluations }));
     goToNextStep();
+  };
+
+  const handleStartExperiments = () => {
+    setStep('experiments');
+  };
+
+  const handleExperimentsComplete = () => {
+    setStep('results');
   };
 
   const handleReset = () => {
@@ -188,6 +197,28 @@ const Index = () => {
                 state={decisionState}
                 onBack={goToPrevStep}
                 onReset={handleReset}
+                onDesignExperiments={handleStartExperiments}
+              />
+            </motion.div>
+          )}
+
+          {step === 'experiments' && (
+            <motion.div
+              key="experiments"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <ExperimentDesign
+                state={decisionState}
+                winPercentage={calculatePosteriorFromEvaluations(
+                  decisionState.initialConfidence,
+                  decisionState.criteriaEvaluations,
+                  decisionState.criteria
+                ).winPercentage}
+                onBack={() => setStep('results')}
+                onComplete={handleReset}
               />
             </motion.div>
           )}
