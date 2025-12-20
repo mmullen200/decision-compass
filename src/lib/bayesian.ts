@@ -1,4 +1,4 @@
-import { EvidenceItem } from '@/types/decision';
+import { EvidenceItem, CriterionEvaluation, Criterion } from '@/types/decision';
 import jStat from 'jstat';
 
 const MONTE_CARLO_SAMPLES = 10000;
@@ -71,6 +71,76 @@ export function calculatePosterior(
       Math.min(100, credibleInterval[1] * 100),
     ],
     samples: samples.map(s => s * 100),
+  };
+}
+
+/**
+ * Calculate posterior from criteria evaluations
+ */
+export function calculatePosteriorFromEvaluations(
+  prior: number,
+  evaluations: CriterionEvaluation[],
+  criteria: Criterion[]
+): { posterior: number; credibleInterval: [number, number]; samples: number[]; winPercentage: number } {
+  const priorProb = prior / 100;
+  const concentration = 10;
+  let alpha = priorProb * concentration;
+  let beta = (1 - priorProb) * concentration;
+  
+  alpha = Math.max(0.5, alpha);
+  beta = Math.max(0.5, beta);
+
+  if (evaluations.length === 0) {
+    const samples = sampleBeta(alpha, beta, MONTE_CARLO_SAMPLES);
+    const posterior = mean(samples) * 100;
+    const credibleInterval = computeCredibleInterval(samples);
+    const winPercentage = samples.filter(s => s > 0.5).length / samples.length * 100;
+    
+    return {
+      posterior,
+      credibleInterval: [credibleInterval[0] * 100, credibleInterval[1] * 100],
+      samples: samples.map(s => s * 100),
+      winPercentage,
+    };
+  }
+
+  // Update based on evaluations
+  evaluations.forEach((evaluation) => {
+    const criterion = criteria.find(c => c.id === evaluation.criterionId);
+    const importance = criterion?.importance ?? 50;
+    
+    // Strength (1-5) and confidence (1-5) combine to determine evidence weight
+    const strengthFactor = evaluation.strength / 5;
+    const confidenceFactor = evaluation.confidence / 5;
+    const importanceFactor = importance / 100;
+    
+    // Combined weight based on all factors
+    const pseudoCount = strengthFactor * confidenceFactor * importanceFactor * 5;
+    
+    if (evaluation.supportsDecision) {
+      alpha += pseudoCount;
+    } else {
+      beta += pseudoCount;
+    }
+  });
+
+  // Monte Carlo sampling
+  const samples = sampleBeta(alpha, beta, MONTE_CARLO_SAMPLES);
+  
+  // Win percentage = how often decision beats status quo (>50%)
+  const winPercentage = samples.filter(s => s > 0.5).length / samples.length * 100;
+  
+  const posterior = mean(samples) * 100;
+  const credibleInterval = computeCredibleInterval(samples);
+
+  return {
+    posterior: Math.max(1, Math.min(99, posterior)),
+    credibleInterval: [
+      Math.max(0, credibleInterval[0] * 100),
+      Math.min(100, credibleInterval[1] * 100),
+    ],
+    samples: samples.map(s => s * 100),
+    winPercentage: Math.round(winPercentage),
   };
 }
 

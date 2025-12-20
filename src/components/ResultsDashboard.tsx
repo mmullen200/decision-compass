@@ -1,11 +1,10 @@
-import { useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { DecisionState } from '@/types/decision';
 import { Button } from '@/components/ui/button';
-import { getConfidenceLabel, getConfidenceColor, generateDistributionData } from '@/lib/bayesian';
-import { ChevronLeft, RotateCcw, TrendingUp, TrendingDown, Minus, Lightbulb, Sparkles, Loader2 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { calculatePosteriorFromEvaluations, getConfidenceColor, generateDistributionData } from '@/lib/bayesian';
+import { RotateCcw, FlaskConical, Trophy, Scale, ChevronRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { useDecisionAnalysis } from '@/hooks/useDecisionAnalysis';
 
 interface ResultsDashboardProps {
   state: DecisionState;
@@ -14,274 +13,260 @@ interface ResultsDashboardProps {
 }
 
 export function ResultsDashboard({ state, onBack, onReset }: ResultsDashboardProps) {
-  const { analysis, isLoading, analyzeDecision } = useDecisionAnalysis();
+  const [showExperimentPrompt, setShowExperimentPrompt] = useState(false);
+  
+  const { decision, initialConfidence, criteria, criteriaEvaluations } = state;
 
-  useEffect(() => {
-    analyzeDecision(state);
-  }, []);
-  const { decision, initialConfidence, posteriorProbability, credibleInterval, evidence, samples } = state;
+  // Calculate Monte Carlo results from evaluations
+  const results = useMemo(() => {
+    return calculatePosteriorFromEvaluations(initialConfidence, criteriaEvaluations, criteria);
+  }, [initialConfidence, criteriaEvaluations, criteria]);
 
-  const priorLabel = getConfidenceLabel(initialConfidence);
-  const posteriorLabel = getConfidenceLabel(posteriorProbability);
-  const posteriorColor = getConfidenceColor(posteriorProbability);
+  const { posterior, credibleInterval, samples, winPercentage } = results;
+  const posteriorColor = getConfidenceColor(posterior);
 
-  const confidenceChange = posteriorProbability - initialConfidence;
-  const changeDirection = confidenceChange > 2 ? 'up' : confidenceChange < -2 ? 'down' : 'neutral';
+  // Distribution data for visualization
+  const distributionData = generateDistributionData(posterior, credibleInterval, samples);
 
-  // Use Monte Carlo samples for distribution if available
-  const distributionData = generateDistributionData(posteriorProbability, credibleInterval, samples);
+  // Determine winner
+  const decisionWins = winPercentage > 50;
+  const isTooClose = winPercentage >= 45 && winPercentage <= 55;
 
-  // Find top contributors
-  const sortedEvidence = [...evidence].sort((a, b) => {
-    const impactA = Math.abs(a.value - 50) * (a.weight / 100);
-    const impactB = Math.abs(b.value - 50) * (b.weight / 100);
-    return impactB - impactA;
-  });
-  const topContributors = sortedEvidence.slice(0, 3);
+  // Count supporting vs opposing criteria
+  const supportingCount = criteriaEvaluations.filter(e => e.supportsDecision).length;
+  const opposingCount = criteriaEvaluations.filter(e => !e.supportsDecision).length;
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-4xl mx-auto">
+      {/* Hero Result */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ type: 'spring', stiffness: 200, delay: 0.1 }}
+        className="text-center mb-12"
+      >
+        <motion.div
+          initial={{ rotate: -10, scale: 0 }}
+          animate={{ rotate: 0, scale: 1 }}
+          transition={{ type: 'spring', stiffness: 300, delay: 0.3 }}
+          className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-primary/20 border-2 border-primary mb-6"
+        >
+          <Trophy className="w-12 h-12 text-primary" />
+        </motion.div>
+
+        <h2 className="text-3xl md:text-4xl font-bold mb-4">
+          Based on your analysis...
+        </h2>
+        
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="glass-card rounded-2xl p-8 mb-6"
+        >
+          <p className="text-xl text-muted-foreground mb-4">
+            {decisionWins ? (
+              <>Your decision to</>
+            ) : (
+              <>Staying with the status quo beats</>
+            )}
+          </p>
+          
+          <p className="text-2xl md:text-3xl font-bold text-primary mb-6">
+            "{decision}"
+          </p>
+          
+          <div className="flex items-center justify-center gap-4">
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 200, delay: 0.7 }}
+              className="relative"
+            >
+              <div className={`text-7xl md:text-9xl font-mono font-black ${posteriorColor}`}>
+                {winPercentage}
+              </div>
+              <div className="absolute -right-8 top-4 text-2xl md:text-3xl font-mono text-muted-foreground">
+                %
+              </div>
+            </motion.div>
+          </div>
+          
+          <p className="text-xl mt-4 text-foreground">
+            {decisionWins ? (
+              <>wins in simulated scenarios</>
+            ) : (
+              <>of the time</>
+            )}
+          </p>
+
+          {isTooClose && (
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1 }}
+              className="text-muted-foreground mt-4 text-sm"
+            >
+              ⚖️ This is very close — more information could help clarify the decision.
+            </motion.p>
+          )}
+        </motion.div>
+      </motion.div>
+
+      {/* Monte Carlo Visualization */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="text-center mb-10"
+        transition={{ delay: 0.8 }}
+        className="glass-card rounded-2xl p-6 mb-8"
       >
-        <h2 className="text-4xl font-bold mb-4">
-          Bayesian <span className="gradient-text">Analysis Complete</span>
-        </h2>
-        <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-          Your uncertainty has been quantified. Here's what the evidence suggests.
-        </p>
-      </motion.div>
+        <div className="flex items-center gap-3 mb-4">
+          <Scale className="w-5 h-5 text-primary" />
+          <h3 className="font-mono text-sm text-muted-foreground">MONTE CARLO SIMULATION (10,000 SCENARIOS)</h3>
+        </div>
+        
+        <div className="h-48 mb-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={distributionData}>
+              <defs>
+                <linearGradient id="decisionGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.8}/>
+                  <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <XAxis 
+                dataKey="x" 
+                stroke="hsl(var(--muted-foreground))" 
+                fontSize={10}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(value) => `${value}%`}
+              />
+              <YAxis hide />
+              <ReferenceLine 
+                x={50} 
+                stroke="hsl(var(--muted-foreground))" 
+                strokeWidth={1}
+                strokeDasharray="4 4"
+                label={{ value: 'Threshold', position: 'top', fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+              />
+              <ReferenceLine 
+                x={Math.round(posterior)} 
+                stroke="hsl(var(--primary))" 
+                strokeWidth={2}
+              />
+              <Area
+                type="monotone"
+                dataKey="y"
+                stroke="hsl(var(--primary))"
+                strokeWidth={2}
+                fillOpacity={1}
+                fill="url(#decisionGradient)"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
 
-      {/* Main results */}
-      <div className="grid lg:grid-cols-2 gap-6 mb-8">
-        {/* Posterior probability card */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.2 }}
-          className="glass-card rounded-2xl p-8"
-        >
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="font-mono text-sm text-muted-foreground">POSTERIOR PROBABILITY</h3>
-            {changeDirection === 'up' && <TrendingUp className="w-5 h-5 text-confidence-high" />}
-            {changeDirection === 'down' && <TrendingDown className="w-5 h-5 text-confidence-low" />}
-            {changeDirection === 'neutral' && <Minus className="w-5 h-5 text-muted-foreground" />}
+        <div className="grid grid-cols-3 gap-4 text-center">
+          <div className="p-3 rounded-xl bg-secondary/50">
+            <p className="text-xs font-mono text-muted-foreground mb-1">STARTING BELIEF</p>
+            <p className="text-xl font-mono font-bold">{Math.round(initialConfidence)}%</p>
           </div>
-
-          <div className="text-center mb-8">
-            <motion.div
-              initial={{ scale: 0.5, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: 'spring', stiffness: 200, delay: 0.3 }}
-            >
-              <span className={`text-8xl font-mono font-bold ${posteriorColor}`}>
-                {Math.round(posteriorProbability)}
-              </span>
-              <span className="text-4xl font-mono text-muted-foreground">%</span>
-            </motion.div>
-            <p className={`text-xl font-medium mt-2 ${posteriorColor}`}>
-              {posteriorLabel} Confidence
+          <div className="p-3 rounded-xl bg-secondary/50">
+            <p className="text-xs font-mono text-muted-foreground mb-1">95% RANGE</p>
+            <p className="text-xl font-mono font-bold">
+              {Math.round(credibleInterval[0])}–{Math.round(credibleInterval[1])}%
             </p>
           </div>
-
-          {/* Prior to posterior comparison */}
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div className="p-3 rounded-xl bg-secondary/50">
-              <p className="text-xs font-mono text-muted-foreground mb-1">PRIOR</p>
-              <p className="text-2xl font-mono font-bold">{Math.round(initialConfidence)}%</p>
-              <p className="text-xs text-muted-foreground">{priorLabel}</p>
-            </div>
-            <div className="p-3 rounded-xl bg-primary/10 flex items-center justify-center">
-              <span className={`text-xl font-mono font-bold ${
-                confidenceChange > 0 ? 'text-confidence-high' : confidenceChange < 0 ? 'text-confidence-low' : 'text-muted-foreground'
-              }`}>
-                {confidenceChange > 0 ? '+' : ''}{Math.round(confidenceChange)}%
-              </span>
-            </div>
-            <div className="p-3 rounded-xl bg-primary/20 border border-primary/30">
-              <p className="text-xs font-mono text-primary mb-1">POSTERIOR</p>
-              <p className="text-2xl font-mono font-bold text-primary">{Math.round(posteriorProbability)}%</p>
-              <p className="text-xs text-primary/70">{posteriorLabel}</p>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Distribution visualization */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.3 }}
-          className="glass-card rounded-2xl p-8"
-        >
-          <h3 className="font-mono text-sm text-muted-foreground mb-6">PROBABILITY DISTRIBUTION</h3>
-          
-          <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={distributionData}>
-                <defs>
-                  <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <XAxis 
-                  dataKey="x" 
-                  stroke="hsl(var(--muted-foreground))" 
-                  fontSize={10}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis hide />
-                <ReferenceLine 
-                  x={posteriorProbability} 
-                  stroke="hsl(var(--primary))" 
-                  strokeWidth={2}
-                  strokeDasharray="4 4"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="y"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#colorGradient)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="mt-4 p-4 rounded-xl bg-secondary/30 border border-border">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">95% Credible Interval:</span>
-              <span className="font-mono text-primary">
-                {Math.round(credibleInterval[0])}% — {Math.round(credibleInterval[1])}%
-              </span>
-            </div>
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Decision summary */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-        className="glass-card rounded-2xl p-8 mb-8"
-      >
-        <div className="flex items-start gap-4 mb-6">
-          <div className="p-3 rounded-xl bg-accent/10 border border-accent/20">
-            <Lightbulb className="w-6 h-6 text-accent" />
-          </div>
-          <div>
-            <h3 className="font-bold text-lg mb-1">Decision Summary</h3>
-            <p className="text-muted-foreground">{decision}</p>
+          <div className="p-3 rounded-xl bg-primary/20 border border-primary/30">
+            <p className="text-xs font-mono text-primary mb-1">FINAL ESTIMATE</p>
+            <p className="text-xl font-mono font-bold text-primary">{Math.round(posterior)}%</p>
           </div>
         </div>
-
-        {topContributors.length > 0 && (
-          <>
-            <h4 className="font-mono text-sm text-muted-foreground mb-4">KEY EVIDENCE CONTRIBUTORS</h4>
-            <div className="grid md:grid-cols-3 gap-4">
-              {topContributors.map((item, idx) => {
-                const isPositive = item.value > 50;
-                return (
-                  <div
-                    key={item.id}
-                    className={`p-4 rounded-xl border ${
-                      isPositive
-                        ? 'bg-confidence-high/10 border-confidence-high/20'
-                        : 'bg-confidence-low/10 border-confidence-low/20'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-lg">{['🥇', '🥈', '🥉'][idx]}</span>
-                      <span className="font-medium text-sm">{item.label}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">
-                        {isPositive ? 'Supports' : 'Opposes'} ({item.value}%)
-                      </span>
-                      <span className={`font-mono ${isPositive ? 'text-confidence-high' : 'text-confidence-low'}`}>
-                        w: {item.weight}%
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
-
-        {evidence.length === 0 && (
-          <div className="text-center py-8 text-muted-foreground">
-            <p>No evidence was provided. The posterior equals the prior.</p>
-            <p className="text-sm mt-2">Add evidence to see how it affects your confidence.</p>
-          </div>
-        )}
       </motion.div>
 
-      {/* AI Analysis */}
+      {/* Criteria Summary */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.45 }}
-        className="glass-card rounded-2xl p-8 mb-8"
+        transition={{ delay: 0.9 }}
+        className="glass-card rounded-2xl p-6 mb-8"
       >
-        <div className="flex items-start gap-4 mb-6">
-          <div className="p-3 rounded-xl bg-primary/10 border border-primary/20">
-            <Sparkles className="w-6 h-6 text-primary" />
+        <h3 className="font-mono text-sm text-muted-foreground mb-4">CRITERIA BREAKDOWN</h3>
+        <div className="flex gap-4">
+          <div className="flex-1 p-4 rounded-xl bg-confidence-high/10 border border-confidence-high/30 text-center">
+            <p className="text-3xl font-bold text-confidence-high">{supportingCount}</p>
+            <p className="text-sm text-muted-foreground">criteria support</p>
+            <p className="text-xs text-confidence-high font-medium mt-1">your decision</p>
           </div>
-          <div>
-            <h3 className="font-bold text-lg mb-1">AI-Powered Insights</h3>
-            <p className="text-muted-foreground text-sm">Analysis powered by Gemini</p>
+          <div className="flex-1 p-4 rounded-xl bg-confidence-low/10 border border-confidence-low/30 text-center">
+            <p className="text-3xl font-bold text-confidence-low">{opposingCount}</p>
+            <p className="text-sm text-muted-foreground">criteria favor</p>
+            <p className="text-xs text-confidence-low font-medium mt-1">status quo</p>
           </div>
         </div>
+      </motion.div>
 
-        {isLoading && (
-          <div className="flex items-center justify-center py-8 gap-3">
-            <Loader2 className="w-5 h-5 animate-spin text-primary" />
-            <span className="text-muted-foreground">Analyzing your decision...</span>
-          </div>
-        )}
-
-        {analysis && !isLoading && (
-          <div className="prose prose-sm prose-invert max-w-none">
-            <div className="whitespace-pre-wrap text-foreground/90 leading-relaxed">
-              {analysis}
-            </div>
-          </div>
-        )}
-
-        {!analysis && !isLoading && (
-          <div className="text-center py-6">
-            <Button onClick={() => analyzeDecision(state)} variant="outline">
-              <Sparkles className="w-4 h-4 mr-2" />
-              Generate AI Analysis
+      {/* Experiment Prompt */}
+      <AnimatePresence>
+        {!showExperimentPrompt ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ delay: 1 }}
+            className="glass-card rounded-2xl p-8 mb-8 text-center"
+          >
+            <FlaskConical className="w-10 h-10 text-accent mx-auto mb-4" />
+            <h3 className="text-xl font-bold mb-2">Want to increase your certainty?</h3>
+            <p className="text-muted-foreground mb-6">
+              We can help you design some quick experiments to gather more evidence.
+            </p>
+            <Button 
+              onClick={() => setShowExperimentPrompt(true)}
+              size="lg"
+              className="gap-2"
+            >
+              Design experiments
+              <ChevronRight className="w-4 h-4" />
             </Button>
-          </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="glass-card rounded-2xl p-8 mb-8 border-2 border-accent/30"
+          >
+            <FlaskConical className="w-10 h-10 text-accent mx-auto mb-4" />
+            <h3 className="text-xl font-bold mb-2 text-center">Experiment Design</h3>
+            <p className="text-muted-foreground text-center mb-4">
+              Coming soon! We'll help you design low-cost experiments to test your assumptions.
+            </p>
+            <Button 
+              onClick={() => setShowExperimentPrompt(false)}
+              variant="outline"
+              className="w-full"
+            >
+              Maybe later
+            </Button>
+          </motion.div>
         )}
-      </motion.div>
+      </AnimatePresence>
 
       {/* Actions */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
+        transition={{ delay: 1.1 }}
         className="flex justify-between"
       >
         <Button onClick={onBack} variant="outline" size="lg">
-          <ChevronLeft className="w-4 h-4" />
-          Adjust Evidence
+          Adjust evaluations
         </Button>
-        <div className="flex gap-3">
-          <Button onClick={onReset} variant="secondary" size="lg">
-            <RotateCcw className="w-4 h-4" />
-            New Analysis
-          </Button>
-        </div>
+        <Button onClick={onReset} variant="secondary" size="lg">
+          <RotateCcw className="w-4 h-4 mr-2" />
+          Start over
+        </Button>
       </motion.div>
     </div>
   );
