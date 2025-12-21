@@ -30,6 +30,28 @@ export function DecisionEntry({ onSubmit, initialValue = '', initialConfidence =
 
   return (
     <div className="max-w-3xl mx-auto">
+      {hasCriteria && onReset && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8 p-4 rounded-xl border border-border/50 bg-muted/30 flex items-center justify-between"
+        >
+          <div>
+            <p className="text-base font-medium text-foreground">Working on a decision</p>
+            <p className="text-sm text-muted-foreground">This will clear everything you have entered so far.</p>
+          </div>
+          <Button
+            onClick={onReset}
+            variant="outline"
+            size="lg"
+            className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+          >
+            <RotateCcw className="w-5 h-5 mr-2" />
+            New decision
+          </Button>
+        </motion.div>
+      )}
+
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -128,26 +150,8 @@ export function DecisionEntry({ onSubmit, initialValue = '', initialConfidence =
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.3 }}
-        className="flex justify-between items-end"
+        className="flex justify-end"
       >
-        {hasCriteria && onReset ? (
-          <div className="flex flex-col items-start gap-1">
-            <Button
-              onClick={onReset}
-              variant="ghost"
-              size="sm"
-              className="text-muted-foreground hover:text-destructive"
-            >
-              <RotateCcw className="w-4 h-4 mr-2" />
-              New decision
-            </Button>
-            <p className="text-xs text-muted-foreground pl-1">
-              This will clear everything you have entered so far.
-            </p>
-          </div>
-        ) : (
-          <div />
-        )}
         <Button
           onClick={handleSubmit}
           disabled={!hasDecision}
