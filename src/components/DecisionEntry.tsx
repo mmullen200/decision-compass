@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Slider } from '@/components/ui/slider';
-import { ArrowRight, Sparkles, Gauge } from 'lucide-react';
+import { ArrowRight, Sparkles, Gauge, RotateCcw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getConfidenceLabel, getConfidenceColor } from '@/lib/bayesian';
 
@@ -10,9 +10,11 @@ interface DecisionEntryProps {
   onSubmit: (decision: string, confidence: number) => void;
   initialValue?: string;
   initialConfidence?: number;
+  hasCriteria?: boolean;
+  onReset?: () => void;
 }
 
-export function DecisionEntry({ onSubmit, initialValue = '', initialConfidence = 50 }: DecisionEntryProps) {
+export function DecisionEntry({ onSubmit, initialValue = '', initialConfidence = 50, hasCriteria = false, onReset }: DecisionEntryProps) {
   const [decision, setDecision] = useState(initialValue);
   const [confidence, setConfidence] = useState(initialConfidence);
 
@@ -126,8 +128,26 @@ export function DecisionEntry({ onSubmit, initialValue = '', initialConfidence =
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.3 }}
-        className="flex justify-end"
+        className="flex justify-between items-end"
       >
+        {hasCriteria && onReset ? (
+          <div className="flex flex-col items-start gap-1">
+            <Button
+              onClick={onReset}
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-destructive"
+            >
+              <RotateCcw className="w-4 h-4 mr-2" />
+              New decision
+            </Button>
+            <p className="text-xs text-muted-foreground pl-1">
+              This will clear everything you have entered so far.
+            </p>
+          </div>
+        ) : (
+          <div />
+        )}
         <Button
           onClick={handleSubmit}
           disabled={!hasDecision}

@@ -146,6 +146,8 @@ const Index = () => {
                 onSubmit={handleDecisionSubmit} 
                 initialValue={decisionState.decision}
                 initialConfidence={decisionState.initialConfidence}
+                hasCriteria={decisionState.criteria.length > 0}
+                onReset={handleReset}
               />
             </motion.div>
           )}
