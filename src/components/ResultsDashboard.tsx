@@ -5,6 +5,7 @@ import { calculatePosteriorFromEvaluations, getConfidenceColor, generateDistribu
 import { RotateCcw, FlaskConical, Trophy, Scale, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { CalculationsPane } from './CalculationsPane';
 
 interface ResultsDashboardProps {
   state: DecisionState;
@@ -244,6 +245,14 @@ export function ResultsDashboard({ state, onBack, onReset, onDesignExperiments }
           Start over
         </Button>
       </motion.div>
+
+      {/* Calculations Debug Pane */}
+      <CalculationsPane 
+        state={state}
+        posterior={posterior}
+        credibleInterval={credibleInterval}
+        winPercentage={winPercentage}
+      />
     </div>
   );
 }
