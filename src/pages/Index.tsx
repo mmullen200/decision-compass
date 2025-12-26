@@ -7,7 +7,7 @@ import { ResultsDashboard } from '@/components/ResultsDashboard';
 import { ExperimentDesign } from '@/components/ExperimentDesign';
 import { DecisionState, Criterion, CriterionEvaluation as CriterionEval } from '@/types/decision';
 import { calculatePosterior, calculatePosteriorFromEvaluations } from '@/lib/bayesian';
-import { Brain } from 'lucide-react';
+import { Plane } from 'lucide-react';
 
 const STEPS = ['decision', 'criteria', 'evaluation', 'results', 'experiments'] as const;
 type Step = typeof STEPS[number];
@@ -105,7 +105,7 @@ const Index = () => {
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl bg-primary/10 border border-primary/20">
-              <Brain className="w-6 h-6 text-primary" />
+              <Plane className="w-6 h-6 text-primary" />
             </div>
             <div>
               <h1 className="font-mono font-bold text-lg gradient-text">Flight Simulator</h1>
