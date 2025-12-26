@@ -108,8 +108,8 @@ const Index = () => {
               <Brain className="w-6 h-6 text-primary" />
             </div>
             <div>
-              <h1 className="font-mono font-bold text-lg gradient-text">Bayesian Reality</h1>
-              <p className="text-xs text-muted-foreground font-mono">Decision Simulator</p>
+              <h1 className="font-mono font-bold text-lg gradient-text">Flight Simulator</h1>
+              <p className="text-xs text-muted-foreground font-mono">for Life</p>
             </div>
           </div>
 
