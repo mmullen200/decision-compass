@@ -1,7 +1,97 @@
 import { EvidenceItem, CriterionEvaluation, Criterion } from '@/types/decision';
 import jStat from 'jstat';
 
-const MONTE_CARLO_SAMPLES = 10000;
+// ============================================================================
+// CONFIGURATION CONSTANTS
+// ============================================================================
+
+/** Number of Monte Carlo samples for posterior estimation */
+export const MONTE_CARLO_SAMPLES = 10000;
+
+/** 
+ * Base scale factor for converting evidence to pseudo-observations.
+ * Higher values = each piece of evidence has more impact on the posterior.
+ * Calibrated empirically: 3 strong pieces of evidence should shift posterior ~20-30%
+ */
+export const EVIDENCE_STRENGTH_SCALE = 5;
+
+/**
+ * Default concentration for prior Beta distribution.
+ * Lower = more diffuse prior (less confident in initial estimate)
+ * Higher = more concentrated prior (more confident in initial estimate)
+ * 
+ * Visualization reference:
+ * - concentration = 2:  Beta(1,1) = uniform, very uncertain
+ * - concentration = 10: Beta(5,5) = moderate certainty
+ * - concentration = 20: Beta(10,10) = quite certain
+ */
+export const DEFAULT_PRIOR_CONCENTRATION = 10;
+
+/** Minimum alpha/beta to prevent numerical instability */
+const MIN_BETA_PARAM = 0.5;
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+export interface BayesianConfig {
+  /** Scale factor for evidence strength (default: EVIDENCE_STRENGTH_SCALE) */
+  evidenceStrengthScale?: number;
+  /** Prior concentration - higher = more confident in prior (default: DEFAULT_PRIOR_CONCENTRATION) */
+  priorConcentration?: number;
+  /** Whether to apply correlation adjustments to evidence */
+  applyCorrelationAdjustment?: boolean;
+}
+
+export interface PosteriorResult {
+  posterior: number;
+  credibleInterval: [number, number];
+  samples: number[];
+}
+
+export interface EvaluationPosteriorResult extends PosteriorResult {
+  winPercentage: number;
+  sensitivityAnalysis?: SensitivityItem[];
+}
+
+export interface SensitivityItem {
+  criterionId: string;
+  criterionName: string;
+  impact: number; // Change in posterior when this criterion is removed
+  direction: 'supporting' | 'opposing';
+}
+
+export interface CorrelationGroup {
+  ids: string[]; // IDs of correlated evidence/evaluations
+  correlationFactor: number; // 0-1, how correlated they are (1 = identical)
+}
+
+// ============================================================================
+// CORE BAYESIAN FUNCTIONS
+// ============================================================================
+
+/**
+ * Computes the effective weight for evidence, accounting for correlation.
+ * Correlated evidence provides less new information, so we reduce its weight.
+ * 
+ * @param baseWeight - Original weight of the evidence
+ * @param correlationFactor - 0 = independent, 1 = fully correlated
+ * @param groupSize - Number of items in the correlation group
+ */
+function computeCorrelationAdjustedWeight(
+  baseWeight: number,
+  correlationFactor: number,
+  groupSize: number
+): number {
+  if (groupSize <= 1 || correlationFactor === 0) return baseWeight;
+  
+  // With n correlated items at correlation r, effective count ≈ 1 + (n-1)*(1-r)
+  // This means fully correlated items count as 1, independent items count as n
+  const effectiveCount = 1 + (groupSize - 1) * (1 - correlationFactor);
+  const adjustmentFactor = effectiveCount / groupSize;
+  
+  return baseWeight * adjustmentFactor;
+}
 
 /**
  * Performs Monte Carlo Bayesian inference using beta distributions.
@@ -11,23 +101,22 @@ const MONTE_CARLO_SAMPLES = 10000;
  */
 export function calculatePosterior(
   prior: number,
-  evidence: EvidenceItem[]
-): { posterior: number; credibleInterval: [number, number]; samples: number[] } {
+  evidence: EvidenceItem[],
+  config: BayesianConfig = {}
+): PosteriorResult {
+  const {
+    evidenceStrengthScale = EVIDENCE_STRENGTH_SCALE,
+    priorConcentration = DEFAULT_PRIOR_CONCENTRATION,
+  } = config;
+
   // Convert prior percentage to probability
   const priorProb = prior / 100;
   
   // Parameterize beta distribution from prior
-  // Using a concentration of 10 gives reasonable uncertainty around the prior
-  const concentration = 10;
-  let alpha = priorProb * concentration;
-  let beta = (1 - priorProb) * concentration;
-  
-  // Ensure valid parameters
-  alpha = Math.max(0.5, alpha);
-  beta = Math.max(0.5, beta);
+  let alpha = Math.max(MIN_BETA_PARAM, priorProb * priorConcentration);
+  let beta = Math.max(MIN_BETA_PARAM, (1 - priorProb) * priorConcentration);
 
   if (evidence.length === 0) {
-    // No evidence: sample from prior
     const samples = sampleBeta(alpha, beta, MONTE_CARLO_SAMPLES);
     const posterior = mean(samples) * 100;
     const credibleInterval = computeCredibleInterval(samples);
@@ -45,8 +134,7 @@ export function calculatePosterior(
     const value = item.value / 100;
     
     // Convert evidence to pseudo-observations
-    // Higher weight = more pseudo-observations
-    const pseudoCount = weight * 5; // Scale factor for evidence strength
+    const pseudoCount = weight * evidenceStrengthScale;
     
     // Evidence supporting the hypothesis adds to alpha
     // Evidence against adds to beta
@@ -75,20 +163,56 @@ export function calculatePosterior(
 }
 
 /**
- * Calculate posterior from criteria evaluations
+ * Computes the pseudo-count for a single criterion evaluation.
+ * 
+ * Formula rationale:
+ * - strength: How strongly does this criterion favor one option? (1-100)
+ * - confidence: How sure are we about this evaluation? (1-100)
+ * - importance: How much does this criterion matter overall? (1-100)
+ * 
+ * Confidence affects the WEIGHT of the evidence (less confident = less pseudo-observations)
+ * Strength affects the VALUE of the evidence (weak = closer to 50/50)
+ * 
+ * This is conceptually different from the old formula where both multiplied into weight.
+ */
+function computeEvaluationPseudoCount(
+  strength: number,
+  confidence: number,
+  importance: number,
+  scale: number
+): { pseudoCount: number; evidenceStrength: number } {
+  // Confidence determines how many pseudo-observations this evaluation contributes
+  // High confidence = more pseudo-observations = tighter posterior
+  const confidenceFactor = confidence / 100;
+  const importanceFactor = importance / 100;
+  const pseudoCount = confidenceFactor * importanceFactor * scale;
+  
+  // Strength determines how much the pseudo-observations favor one side
+  // 100 = all favor decision, 0 = all favor status quo, 50 = neutral
+  const evidenceStrength = strength / 100;
+  
+  return { pseudoCount, evidenceStrength };
+}
+
+/**
+ * Calculate posterior from criteria evaluations with optional correlation handling.
  */
 export function calculatePosteriorFromEvaluations(
   prior: number,
   evaluations: CriterionEvaluation[],
-  criteria: Criterion[]
-): { posterior: number; credibleInterval: [number, number]; samples: number[]; winPercentage: number } {
+  criteria: Criterion[],
+  config: BayesianConfig = {},
+  correlationGroups: CorrelationGroup[] = []
+): EvaluationPosteriorResult {
+  const {
+    evidenceStrengthScale = EVIDENCE_STRENGTH_SCALE,
+    priorConcentration = DEFAULT_PRIOR_CONCENTRATION,
+    applyCorrelationAdjustment = false,
+  } = config;
+
   const priorProb = prior / 100;
-  const concentration = 10;
-  let alpha = priorProb * concentration;
-  let beta = (1 - priorProb) * concentration;
-  
-  alpha = Math.max(0.5, alpha);
-  beta = Math.max(0.5, beta);
+  let alpha = Math.max(MIN_BETA_PARAM, priorProb * priorConcentration);
+  let beta = Math.max(MIN_BETA_PARAM, (1 - priorProb) * priorConcentration);
 
   if (evaluations.length === 0) {
     const samples = sampleBeta(alpha, beta, MONTE_CARLO_SAMPLES);
@@ -101,7 +225,19 @@ export function calculatePosteriorFromEvaluations(
       credibleInterval: [credibleInterval[0] * 100, credibleInterval[1] * 100],
       samples: samples.map(s => s * 100),
       winPercentage,
+      sensitivityAnalysis: [],
     };
+  }
+
+  // Build a map of criterionId -> correlation adjustment factor
+  const correlationAdjustments = new Map<string, number>();
+  if (applyCorrelationAdjustment && correlationGroups.length > 0) {
+    correlationGroups.forEach(group => {
+      group.ids.forEach(id => {
+        const adjustment = computeCorrelationAdjustedWeight(1, group.correlationFactor, group.ids.length);
+        correlationAdjustments.set(id, adjustment);
+      });
+    });
   }
 
   // Update based on evaluations
@@ -109,18 +245,25 @@ export function calculatePosteriorFromEvaluations(
     const criterion = criteria.find(c => c.id === evaluation.criterionId);
     const importance = criterion?.importance ?? 50;
     
-    // Strength (1-5) and confidence (1-5) combine to determine evidence weight
-    const strengthFactor = evaluation.strength / 5;
-    const confidenceFactor = evaluation.confidence / 5;
-    const importanceFactor = importance / 100;
+    const { pseudoCount, evidenceStrength } = computeEvaluationPseudoCount(
+      evaluation.strength,
+      evaluation.confidence,
+      importance,
+      evidenceStrengthScale
+    );
     
-    // Combined weight based on all factors
-    const pseudoCount = strengthFactor * confidenceFactor * importanceFactor * 5;
+    // Apply correlation adjustment if enabled
+    const correlationMultiplier = correlationAdjustments.get(evaluation.criterionId) ?? 1;
+    const adjustedPseudoCount = pseudoCount * correlationMultiplier;
     
     if (evaluation.supportsDecision) {
-      alpha += pseudoCount;
+      // Supporting evidence: strength determines how strongly it supports
+      alpha += evidenceStrength * adjustedPseudoCount;
+      beta += (1 - evidenceStrength) * adjustedPseudoCount;
     } else {
-      beta += pseudoCount;
+      // Opposing evidence: strength determines how strongly it opposes
+      beta += evidenceStrength * adjustedPseudoCount;
+      alpha += (1 - evidenceStrength) * adjustedPseudoCount;
     }
   });
 
@@ -133,6 +276,15 @@ export function calculatePosteriorFromEvaluations(
   const posterior = mean(samples) * 100;
   const credibleInterval = computeCredibleInterval(samples);
 
+  // Perform sensitivity analysis (leave-one-out)
+  const sensitivityAnalysis = computeSensitivityAnalysis(
+    prior,
+    evaluations,
+    criteria,
+    posterior,
+    config
+  );
+
   return {
     posterior: Math.max(1, Math.min(99, posterior)),
     credibleInterval: [
@@ -141,8 +293,100 @@ export function calculatePosteriorFromEvaluations(
     ],
     samples: samples.map(s => s * 100),
     winPercentage: Math.round(winPercentage),
+    sensitivityAnalysis,
   };
 }
+
+// ============================================================================
+// SENSITIVITY ANALYSIS
+// ============================================================================
+
+/**
+ * Performs leave-one-out sensitivity analysis.
+ * For each criterion, computes how the posterior would change if that criterion were removed.
+ * This reveals which criteria have the most influence on the final decision.
+ */
+function computeSensitivityAnalysis(
+  prior: number,
+  evaluations: CriterionEvaluation[],
+  criteria: Criterion[],
+  fullPosterior: number,
+  config: BayesianConfig
+): SensitivityItem[] {
+  if (evaluations.length <= 1) {
+    return [];
+  }
+
+  return evaluations.map(evaluation => {
+    const criterion = criteria.find(c => c.id === evaluation.criterionId);
+    
+    // Calculate posterior without this evaluation
+    const reducedEvaluations = evaluations.filter(e => e.criterionId !== evaluation.criterionId);
+    const reducedResult = calculatePosteriorFromEvaluationsInternal(
+      prior,
+      reducedEvaluations,
+      criteria,
+      config
+    );
+    
+    // Impact = how much the posterior changes when this criterion is removed
+    const impact = fullPosterior - reducedResult.posterior;
+    
+    const direction: 'supporting' | 'opposing' = evaluation.supportsDecision ? 'supporting' : 'opposing';
+    return {
+      criterionId: evaluation.criterionId,
+      criterionName: criterion?.name ?? 'Unknown',
+      impact: Math.round(impact * 10) / 10, // Round to 1 decimal
+      direction,
+    };
+  }).sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact)); // Sort by absolute impact
+}
+
+/**
+ * Internal version that doesn't compute sensitivity (to avoid recursion)
+ */
+function calculatePosteriorFromEvaluationsInternal(
+  prior: number,
+  evaluations: CriterionEvaluation[],
+  criteria: Criterion[],
+  config: BayesianConfig
+): { posterior: number } {
+  const {
+    evidenceStrengthScale = EVIDENCE_STRENGTH_SCALE,
+    priorConcentration = DEFAULT_PRIOR_CONCENTRATION,
+  } = config;
+
+  const priorProb = prior / 100;
+  let alpha = Math.max(MIN_BETA_PARAM, priorProb * priorConcentration);
+  let beta = Math.max(MIN_BETA_PARAM, (1 - priorProb) * priorConcentration);
+
+  evaluations.forEach((evaluation) => {
+    const criterion = criteria.find(c => c.id === evaluation.criterionId);
+    const importance = criterion?.importance ?? 50;
+    
+    const { pseudoCount, evidenceStrength } = computeEvaluationPseudoCount(
+      evaluation.strength,
+      evaluation.confidence,
+      importance,
+      evidenceStrengthScale
+    );
+    
+    if (evaluation.supportsDecision) {
+      alpha += evidenceStrength * pseudoCount;
+      beta += (1 - evidenceStrength) * pseudoCount;
+    } else {
+      beta += evidenceStrength * pseudoCount;
+      alpha += (1 - evidenceStrength) * pseudoCount;
+    }
+  });
+
+  const samples = sampleBeta(alpha, beta, MONTE_CARLO_SAMPLES);
+  return { posterior: mean(samples) * 100 };
+}
+
+// ============================================================================
+// STATISTICAL UTILITIES
+// ============================================================================
 
 /**
  * Sample from a Beta distribution using jStat
@@ -171,6 +415,10 @@ function computeCredibleInterval(samples: number[]): [number, number] {
 function mean(samples: number[]): number {
   return samples.reduce((sum, val) => sum + val, 0) / samples.length;
 }
+
+// ============================================================================
+// UI HELPERS
+// ============================================================================
 
 export function getConfidenceLabel(confidence: number): string {
   if (confidence < 20) return 'Very Low';
