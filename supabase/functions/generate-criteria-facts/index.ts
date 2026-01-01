@@ -29,15 +29,14 @@ serve(async (req) => {
     const { decision, criterion } = await req.json() as GenerateFactsRequest;
     console.log('Generating facts for criterion:', criterion.name, 'decision:', decision);
 
-    const systemPrompt = `You are an expert decision analyst. Your task is to provide the 5 most important contextual facts that would help someone evaluate a decision criterion.
+    const systemPrompt = `You are an expert decision analyst. Provide 5 key contextual facts to help evaluate a decision criterion.
 
-For each fact:
-- Be specific and actionable
-- Focus on information that would genuinely affect someone's assessment
-- Consider both supporting and opposing perspectives
-- Draw on research, statistics, or common patterns where relevant
+Each fact MUST be:
+- Maximum 20-25 words (one short sentence only)
+- Specific and directly relevant
+- A mix of supporting and opposing perspectives
 
-Return a JSON object with a "facts" array containing exactly 5 strings, each being a concise but informative fact (1-2 sentences each).`;
+Return a JSON object with a "facts" array containing exactly 5 brief strings.`;
 
     const userPrompt = `Decision being considered: "${decision}"
 
