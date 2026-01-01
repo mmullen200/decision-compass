@@ -183,31 +183,33 @@ export function CriteriaWizard({ decision, initialCriteria = [], onSubmit, onBac
                         : 'bg-secondary/50 border-border'
                     }`}
                   >
-                    <div className="flex items-center gap-4">
-                      <GripVertical className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                      
-                      <span className="text-sm font-mono text-muted-foreground w-6">
-                        #{index + 1}
-                      </span>
-                      
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium truncate">{criterion.name}</span>
-                          {criterion.isAISuggested && (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-mono">
-                              AI
-                            </span>
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-start gap-4">
+                        <GripVertical className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" />
+                        
+                        <span className="text-sm font-mono text-muted-foreground w-6 mt-0.5">
+                          #{index + 1}
+                        </span>
+                        
+                        <div className="flex-1">
+                          <div className="flex items-start gap-2 flex-wrap">
+                            <span className="font-medium">{criterion.name}</span>
+                            {criterion.isAISuggested && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-mono">
+                                AI
+                              </span>
+                            )}
+                          </div>
+                          {criterion.description && (
+                            <p className="text-sm text-muted-foreground mt-2">
+                              {criterion.description}
+                            </p>
                           )}
                         </div>
-                        {criterion.description && (
-                          <p className="text-xs text-muted-foreground mt-1 truncate">
-                            {criterion.description}
-                          </p>
-                        )}
                       </div>
 
-                      <div className="flex items-center gap-3 flex-shrink-0">
-                        <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-between pl-10 pt-2 border-t border-border/50">
+                        <div className="flex items-center gap-3">
                           <span className="text-xs text-muted-foreground">Importance</span>
                           <input
                             type="range"
@@ -215,9 +217,9 @@ export function CriteriaWizard({ decision, initialCriteria = [], onSubmit, onBac
                             max="100"
                             value={criterion.importance}
                             onChange={(e) => updateImportance(criterion.id, Number(e.target.value))}
-                            className="w-20 h-1 accent-primary cursor-pointer"
+                            className="w-24 h-1 accent-primary cursor-pointer"
                           />
-                          <span className="text-xs font-mono w-8 text-right">
+                          <span className="text-xs font-mono w-8">
                             {criterion.importance}%
                           </span>
                         </div>
