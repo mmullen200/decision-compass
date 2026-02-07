@@ -29,8 +29,9 @@ export function MonteCarloVisualization({
   const animationFrameRef = useRef<number>();
   const startTimeRef = useRef<number>(0);
   const pathIdRef = useRef<number>(0);
+  const phaseRef = useRef<'intro' | 'running' | 'complete'>('intro');
   const [simulationCount, setSimulationCount] = useState(0);
-  const [phase, setPhase] = useState<'intro' | 'running' | 'complete'>('intro');
+  const [displayPhase, setDisplayPhase] = useState<'intro' | 'running' | 'complete'>('intro');
 
   // Generate a wiggly path using random walk with drift
   const generatePath = useCallback((width: number, height: number): { x: number; y: number }[] => {
@@ -107,7 +108,8 @@ export function MonteCarloVisualization({
         cancelAnimationFrame(animationFrameRef.current);
       }
       setSimulationCount(0);
-      setPhase('intro');
+      phaseRef.current = 'intro';
+      setDisplayPhase('intro');
       return;
     }
 
@@ -129,7 +131,8 @@ export function MonteCarloVisualization({
     pathsRef.current = [];
     pathIdRef.current = 0;
     startTimeRef.current = performance.now();
-    setPhase('intro');
+    phaseRef.current = 'intro';
+    setDisplayPhase('intro');
 
     // Intro delay before starting
     const introDelay = 800;
@@ -149,9 +152,10 @@ export function MonteCarloVisualization({
       const elapsed = currentTime - startTimeRef.current;
       const rect = canvas.getBoundingClientRect();
       
-      // Update phase
-      if (elapsed >= introDelay && phase === 'intro') {
-        setPhase('running');
+      // Update phase (use ref to avoid re-triggering effect)
+      if (elapsed >= introDelay && phaseRef.current === 'intro') {
+        phaseRef.current = 'running';
+        setDisplayPhase('running');
       }
       
       // Clear canvas with fade
@@ -201,7 +205,8 @@ export function MonteCarloVisualization({
 
       // Check if animation is complete
       if (elapsed >= introDelay + duration + pathDrawDuration + fadeOutDuration) {
-        setPhase('complete');
+        phaseRef.current = 'complete';
+        setDisplayPhase('complete');
         onComplete?.();
         return;
       }
@@ -216,7 +221,7 @@ export function MonteCarloVisualization({
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [isRunning, duration, pathCount, generatePath, drawPath, onComplete, phase]);
+  }, [isRunning, duration, pathCount, generatePath, drawPath, onComplete]);
 
   if (!isRunning) return null;
 
@@ -253,7 +258,7 @@ export function MonteCarloVisualization({
       {/* Live counter */}
       <div className="relative z-10 text-center">
         <AnimatePresence mode="wait">
-          {phase === 'intro' && (
+          {displayPhase === 'intro' && (
             <motion.div
               key="intro"
               initial={{ opacity: 0, scale: 0.9 }}
@@ -268,7 +273,7 @@ export function MonteCarloVisualization({
             </motion.div>
           )}
           
-          {phase === 'running' && (
+          {displayPhase === 'running' && (
             <motion.div
               key="running"
               initial={{ opacity: 0 }}
