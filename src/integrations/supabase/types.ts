@@ -14,7 +14,137 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      decision_criteria: {
+        Row: {
+          created_at: string
+          decision_id: string
+          description: string | null
+          id: string
+          importance: number
+          is_ai_suggested: boolean | null
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          decision_id: string
+          description?: string | null
+          id?: string
+          importance?: number
+          is_ai_suggested?: boolean | null
+          name: string
+        }
+        Update: {
+          created_at?: string
+          decision_id?: string
+          description?: string | null
+          id?: string
+          importance?: number
+          is_ai_suggested?: boolean | null
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "decision_criteria_decision_id_fkey"
+            columns: ["decision_id"]
+            isOneToOne: false
+            referencedRelation: "decisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      decision_evaluations: {
+        Row: {
+          confidence: number
+          created_at: string
+          criterion_id: string
+          decision_id: string
+          id: string
+          strength: number
+          supports_decision: boolean
+        }
+        Insert: {
+          confidence: number
+          created_at?: string
+          criterion_id: string
+          decision_id: string
+          id?: string
+          strength: number
+          supports_decision: boolean
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          criterion_id?: string
+          decision_id?: string
+          id?: string
+          strength?: number
+          supports_decision?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "decision_evaluations_criterion_id_fkey"
+            columns: ["criterion_id"]
+            isOneToOne: false
+            referencedRelation: "decision_criteria"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "decision_evaluations_decision_id_fkey"
+            columns: ["decision_id"]
+            isOneToOne: false
+            referencedRelation: "decisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      decisions: {
+        Row: {
+          created_at: string
+          credible_interval_high: number | null
+          credible_interval_low: number | null
+          decision: string
+          effective_sample_size: number | null
+          geweke_z_score: number | null
+          id: string
+          initial_confidence: number
+          mc_error: number | null
+          posterior_probability: number | null
+          updated_at: string
+          user_id: string
+          win_percentage: number | null
+        }
+        Insert: {
+          created_at?: string
+          credible_interval_high?: number | null
+          credible_interval_low?: number | null
+          decision: string
+          effective_sample_size?: number | null
+          geweke_z_score?: number | null
+          id?: string
+          initial_confidence?: number
+          mc_error?: number | null
+          posterior_probability?: number | null
+          updated_at?: string
+          user_id: string
+          win_percentage?: number | null
+        }
+        Update: {
+          created_at?: string
+          credible_interval_high?: number | null
+          credible_interval_low?: number | null
+          decision?: string
+          effective_sample_size?: number | null
+          geweke_z_score?: number | null
+          id?: string
+          initial_confidence?: number
+          mc_error?: number | null
+          posterior_probability?: number | null
+          updated_at?: string
+          user_id?: string
+          win_percentage?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
