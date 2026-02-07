@@ -21,7 +21,7 @@ const TOTAL_SIMULATIONS = 10000;
 export function MonteCarloVisualization({ 
   isRunning, 
   onComplete,
-  duration = 3500,
+  duration = 7000,
   pathCount = 300
 }: MonteCarloVisualizationProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
