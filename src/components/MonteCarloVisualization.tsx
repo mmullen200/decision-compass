@@ -1,5 +1,5 @@
-import { useEffect, useRef, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { useEffect, useRef, useCallback, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface MonteCarloVisualizationProps {
   isRunning: boolean;
@@ -13,48 +13,44 @@ interface Path {
   points: { x: number; y: number }[];
   startTime: number;
   opacity: number;
+  isHighlighted?: boolean;
 }
+
+const TOTAL_SIMULATIONS = 10000;
 
 export function MonteCarloVisualization({ 
   isRunning, 
   onComplete,
-  duration = 3000,
-  pathCount = 200
+  duration = 3500,
+  pathCount = 300
 }: MonteCarloVisualizationProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pathsRef = useRef<Path[]>([]);
   const animationFrameRef = useRef<number>();
   const startTimeRef = useRef<number>(0);
   const pathIdRef = useRef<number>(0);
+  const [simulationCount, setSimulationCount] = useState(0);
+  const [phase, setPhase] = useState<'intro' | 'running' | 'complete'>('intro');
 
   // Generate a wiggly path using random walk with drift
   const generatePath = useCallback((width: number, height: number): { x: number; y: number }[] => {
     const points: { x: number; y: number }[] = [];
     const steps = 60;
-    const startY = height * 0.85; // Start near bottom
-    const endY = height * 0.15; // End near top
+    const startY = height * 0.85;
+    const endY = height * 0.15;
     
     let x = 0;
     let y = startY;
     
-    // Random final Y position (with some clustering around the middle)
     const targetY = endY + (Math.random() * 0.4 + 0.3) * (startY - endY) * (Math.random() < 0.7 ? 0.5 : 1);
     const yDrift = (targetY - startY) / steps;
-    
-    // Volatility varies per path
     const volatility = 15 + Math.random() * 35;
     
     for (let i = 0; i <= steps; i++) {
       points.push({ x, y });
-      
-      // Move right
       x += width / steps;
-      
-      // Random walk with drift toward target
       const noise = (Math.random() - 0.5) * volatility;
       y += yDrift + noise;
-      
-      // Soft bounds
       y = Math.max(height * 0.05, Math.min(height * 0.95, y));
     }
     
@@ -66,7 +62,8 @@ export function MonteCarloVisualization({
     ctx: CanvasRenderingContext2D, 
     points: { x: number; y: number }[], 
     opacity: number,
-    progress: number // 0-1, how much of the path to draw
+    progress: number,
+    isHighlighted: boolean = false
   ) => {
     if (points.length < 2 || opacity <= 0) return;
     
@@ -74,8 +71,19 @@ export function MonteCarloVisualization({
     if (pointsToDraw < 2) return;
     
     ctx.beginPath();
-    ctx.strokeStyle = `hsla(187, 80%, 60%, ${opacity * 0.15})`;
-    ctx.lineWidth = 1;
+    
+    if (isHighlighted) {
+      // Brighter, thicker line for the "current" simulation
+      ctx.strokeStyle = `hsla(187, 90%, 70%, ${opacity * 0.8})`;
+      ctx.lineWidth = 2;
+      ctx.shadowColor = 'hsla(187, 80%, 60%, 0.5)';
+      ctx.shadowBlur = 8;
+    } else {
+      ctx.strokeStyle = `hsla(187, 80%, 60%, ${opacity * 0.12})`;
+      ctx.lineWidth = 1;
+      ctx.shadowBlur = 0;
+    }
+    
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     
@@ -90,6 +98,7 @@ export function MonteCarloVisualization({
     }
     
     ctx.stroke();
+    ctx.shadowBlur = 0;
   }, []);
 
   useEffect(() => {
@@ -97,6 +106,8 @@ export function MonteCarloVisualization({
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
+      setSimulationCount(0);
+      setPhase('intro');
       return;
     }
 
@@ -106,7 +117,6 @@ export function MonteCarloVisualization({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set canvas size
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
@@ -119,48 +129,79 @@ export function MonteCarloVisualization({
     pathsRef.current = [];
     pathIdRef.current = 0;
     startTimeRef.current = performance.now();
+    setPhase('intro');
 
-    const pathInterval = duration / pathCount;
-    const pathDrawDuration = 800; // How long each path takes to draw
-    const fadeOutDuration = 2000; // How long paths take to fade
+    // Intro delay before starting
+    const introDelay = 800;
+    const pathDrawDuration = 600;
+    const fadeOutDuration = 1500;
+    
+    // Easing function for path spawning - starts slow, speeds up
+    const getExpectedPaths = (elapsed: number): number => {
+      if (elapsed < introDelay) return 0;
+      const t = (elapsed - introDelay) / duration;
+      // Ease-in curve: slow start, fast finish
+      const eased = t * t * t;
+      return Math.min(pathCount, Math.floor(eased * pathCount * 1.5));
+    };
 
     const animate = (currentTime: number) => {
       const elapsed = currentTime - startTimeRef.current;
       const rect = canvas.getBoundingClientRect();
       
-      // Clear canvas with slight fade for trail effect
-      ctx.fillStyle = 'hsla(222, 47%, 6%, 0.15)';
+      // Update phase
+      if (elapsed >= introDelay && phase === 'intro') {
+        setPhase('running');
+      }
+      
+      // Clear canvas with fade
+      ctx.fillStyle = 'hsla(222, 47%, 6%, 0.12)';
       ctx.fillRect(0, 0, rect.width, rect.height);
 
-      // Add new paths based on elapsed time
-      const expectedPaths = Math.min(pathCount, Math.floor(elapsed / pathInterval));
+      // Add new paths with easing
+      const expectedPaths = getExpectedPaths(elapsed);
       while (pathsRef.current.length < expectedPaths) {
+        // Mark previous highlighted path as normal
+        pathsRef.current.forEach(p => p.isHighlighted = false);
+        
         pathsRef.current.push({
           id: pathIdRef.current++,
           points: generatePath(rect.width, rect.height),
           startTime: currentTime,
-          opacity: 1
+          opacity: 1,
+          isHighlighted: true
         });
       }
 
-      // Update and draw paths
-      pathsRef.current = pathsRef.current.filter(path => {
+      // Update simulation counter (scaled to represent 10,000)
+      const displayCount = Math.min(
+        TOTAL_SIMULATIONS,
+        Math.floor((pathsRef.current.length / pathCount) * TOTAL_SIMULATIONS)
+      );
+      setSimulationCount(displayCount);
+
+      // Draw paths (non-highlighted first, then highlighted on top)
+      const nonHighlighted = pathsRef.current.filter(p => !p.isHighlighted);
+      const highlighted = pathsRef.current.filter(p => p.isHighlighted);
+      
+      [...nonHighlighted, ...highlighted].forEach(path => {
         const pathAge = currentTime - path.startTime;
         const drawProgress = Math.min(1, pathAge / pathDrawDuration);
         
-        // Calculate opacity based on age
         if (pathAge > pathDrawDuration) {
           const fadeAge = pathAge - pathDrawDuration;
           path.opacity = Math.max(0, 1 - fadeAge / fadeOutDuration);
         }
         
-        drawPath(ctx, path.points, path.opacity, drawProgress);
-        
-        return path.opacity > 0;
+        drawPath(ctx, path.points, path.opacity, drawProgress, path.isHighlighted);
       });
+      
+      // Filter out faded paths
+      pathsRef.current = pathsRef.current.filter(p => p.opacity > 0);
 
       // Check if animation is complete
-      if (elapsed >= duration + pathDrawDuration + fadeOutDuration) {
+      if (elapsed >= introDelay + duration + pathDrawDuration + fadeOutDuration) {
+        setPhase('complete');
         onComplete?.();
         return;
       }
@@ -175,10 +216,8 @@ export function MonteCarloVisualization({
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [isRunning, duration, pathCount, generatePath, drawPath, onComplete]);
+  }, [isRunning, duration, pathCount, generatePath, drawPath, onComplete, phase]);
 
-  // Critical: when not running, render nothing. Keeping a full-screen (even transparent)
-  // fixed overlay mounted blocks taps/clicks on inputs across devices.
   if (!isRunning) return null;
 
   return (
@@ -194,49 +233,92 @@ export function MonteCarloVisualization({
         className="absolute inset-0 w-full h-full"
       />
       
-      {/* Overlay text */}
-      <div className="relative z-10 text-center">
-        <motion.p
-          initial={{ opacity: 0, y: 20 }}
+      {/* Header explanation */}
+      <div className="absolute top-8 left-1/2 -translate-x-1/2 z-10">
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="font-mono text-sm text-primary/80 tracking-wider"
+          transition={{ delay: 0.2 }}
+          className="text-center"
         >
-          SIMULATING 10,000 SCENARIOS
-        </motion.p>
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 0.6 }}
-          transition={{ delay: 1 }}
-          className="text-xs text-muted-foreground mt-2"
-        >
-          Each line represents a possible outcome
-        </motion.p>
+          <p className="font-mono text-xs text-muted-foreground tracking-wider mb-1">
+            MONTE CARLO SIMULATION
+          </p>
+          <p className="text-sm text-foreground/80">
+            Testing your decision across thousands of possible futures
+          </p>
+        </motion.div>
       </div>
 
-      {/* Progress indicator */}
-      <motion.div
-        className="absolute bottom-8 left-1/2 -translate-x-1/2"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.3 }}
-      >
-        <div className="flex gap-1">
-          {[...Array(5)].map((_, i) => (
+      {/* Live counter */}
+      <div className="relative z-10 text-center">
+        <AnimatePresence mode="wait">
+          {phase === 'intro' && (
             <motion.div
-              key={i}
-              className="w-2 h-2 rounded-full bg-primary/50"
-              animate={{
-                opacity: [0.3, 1, 0.3],
-                scale: [0.8, 1.2, 0.8],
-              }}
-              transition={{
-                duration: 1,
-                repeat: Infinity,
-                delay: i * 0.15,
-              }}
-            />
-          ))}
+              key="intro"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="text-center"
+            >
+              <p className="font-mono text-lg text-primary mb-2">Initializing simulation...</p>
+              <p className="text-sm text-muted-foreground">
+                Each line = one possible outcome
+              </p>
+            </motion.div>
+          )}
+          
+          {phase === 'running' && (
+            <motion.div
+              key="running"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="text-center"
+            >
+              <div className="flex items-baseline justify-center gap-2 mb-2">
+                <span className="font-mono text-xs text-muted-foreground">SCENARIO</span>
+                <motion.span 
+                  key={simulationCount}
+                  initial={{ opacity: 0.5, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="font-mono text-5xl md:text-6xl font-bold text-primary tabular-nums"
+                >
+                  {simulationCount.toLocaleString()}
+                </motion.span>
+                <span className="font-mono text-lg text-muted-foreground">
+                  / {TOTAL_SIMULATIONS.toLocaleString()}
+                </span>
+              </div>
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.7 }}
+                transition={{ delay: 0.5 }}
+                className="text-sm text-muted-foreground"
+              >
+                ↑ bright line = current simulation
+              </motion.p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Legend at bottom */}
+      <motion.div
+        className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5 }}
+      >
+        <div className="flex items-center gap-6 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-0.5 bg-primary/30" />
+            <span>Past simulations</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-0.5 bg-primary shadow-[0_0_8px_hsl(187,80%,60%)]" />
+            <span>Current simulation</span>
+          </div>
         </div>
       </motion.div>
     </motion.div>
