@@ -5,11 +5,12 @@ import { CriteriaWizard } from '@/components/CriteriaWizard';
 import { CriteriaEvaluation } from '@/components/CriteriaEvaluation';
 import { ResultsDashboard } from '@/components/ResultsDashboard';
 import { ExperimentDesign } from '@/components/ExperimentDesign';
+import { MonteCarloVisualization } from '@/components/MonteCarloVisualization';
 import { DecisionState, Criterion, CriterionEvaluation as CriterionEval } from '@/types/decision';
 import { calculatePosterior, calculatePosteriorFromEvaluations } from '@/lib/bayesian';
 import { Plane } from 'lucide-react';
 
-const STEPS = ['decision', 'criteria', 'evaluation', 'results', 'experiments'] as const;
+const STEPS = ['decision', 'criteria', 'evaluation', 'simulating', 'results', 'experiments'] as const;
 type Step = typeof STEPS[number];
 
 const Index = () => {
@@ -30,8 +31,8 @@ const Index = () => {
   const goToNextStep = () => {
     const nextIndex = currentStepIndex + 1;
     if (nextIndex < STEPS.length) {
-      if (STEPS[nextIndex] === 'results') {
-        // Calculate posterior with evaluations
+      if (STEPS[nextIndex] === 'simulating') {
+        // Calculate posterior with evaluations before showing simulation
         const { posterior, credibleInterval, samples } = calculatePosterior(
           decisionState.initialConfidence,
           decisionState.evidence
@@ -45,6 +46,10 @@ const Index = () => {
       }
       setStep(STEPS[nextIndex]);
     }
+  };
+
+  const handleSimulationComplete = () => {
+    setStep('results');
   };
 
   const goToPrevStep = () => {
@@ -186,7 +191,17 @@ const Index = () => {
               />
             </motion.div>
           )}
+        </AnimatePresence>
 
+        {/* Monte Carlo Visualization - rendered outside AnimatePresence for full-screen effect */}
+        <MonteCarloVisualization 
+          isRunning={step === 'simulating'}
+          onComplete={handleSimulationComplete}
+          duration={3500}
+          pathCount={300}
+        />
+
+        <AnimatePresence mode="wait">
           {step === 'results' && (
             <motion.div
               key="results"
