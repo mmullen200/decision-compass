@@ -103,8 +103,17 @@
 
 @layer components {
   .glass-card {
-    @apply bg-card/80 backdrop-blur-xl border border-border/50 shadow-xl;
+    @apply bg-card/80 border border-border/50 shadow-xl;
     background: var(--gradient-card);
+    /* Remove backdrop-blur as it can interfere with iOS input focus */
+  }
+
+  /* Ensure inputs inside glass cards are always tappable */
+  .glass-card input,
+  .glass-card textarea,
+  .glass-card select {
+    position: relative;
+    z-index: 10;
   }
 
   .data-glow {
