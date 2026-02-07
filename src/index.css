@@ -71,6 +71,8 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
+    /* Prevent iOS text size adjustment */
+    -webkit-text-size-adjust: 100%;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -79,6 +81,23 @@
 
   .font-mono {
     font-family: var(--font-mono);
+  }
+
+  /* iOS/iPad input improvements */
+  input, textarea, select {
+    /* Prevent zoom on focus in iOS */
+    font-size: 16px !important;
+    /* Improve touch responsiveness */
+    touch-action: manipulation;
+    /* Ensure inputs are tappable */
+    -webkit-appearance: none;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  /* Ensure touch targets are accessible */
+  button, [role="button"], a, input, textarea, select {
+    touch-action: manipulation;
   }
 }
 
