@@ -19,6 +19,24 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 
+function getOutcomeDescription(winPercentage: number | null, criteriaCount: number): string {
+  if (winPercentage === null) return 'Analysis incomplete';
+  
+  if (winPercentage >= 80) {
+    return `Strong support — analysis indicates high confidence this is the right choice`;
+  } else if (winPercentage >= 65) {
+    return `Favorable outlook — evidence leans toward proceeding with this decision`;
+  } else if (winPercentage >= 50) {
+    return `Slight edge — marginally supported, but consider gathering more information`;
+  } else if (winPercentage >= 35) {
+    return `Mixed signals — evidence slightly favors the status quo over this change`;
+  } else if (winPercentage >= 20) {
+    return `Caution advised — analysis suggests reconsidering or adjusting this decision`;
+  } else {
+    return `Strong headwinds — evidence indicates this path may not lead to desired outcomes`;
+  }
+}
+
 export default function History() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
@@ -130,8 +148,11 @@ export default function History() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <p className="text-lg font-medium truncate mb-1">"{d.decision}"</p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-muted-foreground mb-2">
                         {format(new Date(d.createdAt), 'MMM d, yyyy · h:mm a')}
+                      </p>
+                      <p className="text-sm text-foreground/80 italic">
+                        {getOutcomeDescription(d.winPercentage, d.criteria.length)}
                       </p>
                     </div>
 
