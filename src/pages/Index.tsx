@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DecisionEntry } from '@/components/DecisionEntry';
 import { CriteriaWizard } from '@/components/CriteriaWizard';
@@ -12,14 +12,17 @@ import { calculatePosterior, calculatePosteriorFromEvaluations } from '@/lib/bay
 import { Plane, History, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import { SavedDecision } from '@/hooks/useDecisionPersistence';
 
 const STEPS = ['decision', 'criteria', 'evaluation', 'simulating', 'results', 'experiments'] as const;
 type Step = typeof STEPS[number];
 
 const Index = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, signOut } = useAuth();
   const [step, setStep] = useState<Step>('decision');
+  const [editingDecisionId, setEditingDecisionId] = useState<string | null>(null);
   const [decisionState, setDecisionState] = useState<DecisionState>({
     decision: '',
     category: '',
@@ -30,6 +33,31 @@ const Index = () => {
     posteriorProbability: 50,
     credibleInterval: [35, 65],
   });
+
+  // Load saved decision from navigation state
+  useEffect(() => {
+    const savedDecision = (location.state as { savedDecision?: SavedDecision })?.savedDecision;
+    if (savedDecision) {
+      setEditingDecisionId(savedDecision.id);
+      setDecisionState({
+        decision: savedDecision.decision,
+        category: '',
+        criteria: savedDecision.criteria,
+        criteriaEvaluations: savedDecision.evaluations,
+        initialConfidence: savedDecision.initialConfidence,
+        evidence: [],
+        posteriorProbability: savedDecision.posteriorProbability ?? 50,
+        credibleInterval: [
+          savedDecision.credibleIntervalLow ?? 35,
+          savedDecision.credibleIntervalHigh ?? 65,
+        ],
+      });
+      // Start at criteria step so user can update priors
+      setStep('criteria');
+      // Clear the navigation state to prevent reloading on refresh
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, navigate, location.pathname]);
 
   const currentStepIndex = STEPS.indexOf(step);
 
@@ -89,6 +117,7 @@ const Index = () => {
   };
 
   const handleReset = () => {
+    setEditingDecisionId(null);
     setDecisionState({
       decision: '',
       category: '',
