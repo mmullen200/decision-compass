@@ -32,7 +32,7 @@ serve(async (req) => {
     const systemPrompt = `You are an expert decision analyst. Provide 5 key contextual facts to help evaluate a decision criterion.
 
 Each fact MUST be:
-- Maximum 20-25 words (one short sentence only)
+- Maximum 10-12 words (one short phrase)
 - Specific and directly relevant
 - A mix of supporting and opposing perspectives
 
