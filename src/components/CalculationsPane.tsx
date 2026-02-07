@@ -102,7 +102,10 @@ export function CalculationsPane({ state, posterior, credibleInterval, winPercen
             <div className="mt-4 p-6 rounded-xl border border-border bg-card font-mono text-sm space-y-6">
               {/* Prior Setup */}
               <section>
-                <h4 className="text-base font-bold text-primary mb-3">1. Prior Distribution (Beta)</h4>
+                <h4 className="text-base font-bold text-primary mb-2">1. Prior Distribution (Beta)</h4>
+                <p className="text-xs text-muted-foreground mb-3 font-sans italic">
+                  Your starting belief before considering any evidence. The Beta distribution is ideal for modeling probabilities because it's bounded between 0 and 1. The concentration factor controls how strongly you hold your initial belief—higher values mean more conviction.
+                </p>
                 <div className="space-y-1 text-muted-foreground">
                   <p>Initial confidence: <span className="text-foreground">{initialConfidence}%</span></p>
                   <p>Prior probability: <span className="text-foreground">{priorProb.toFixed(2)}</span></p>
@@ -118,7 +121,10 @@ export function CalculationsPane({ state, posterior, credibleInterval, winPercen
 
               {/* Evidence Updates */}
               <section>
-                <h4 className="text-base font-bold text-primary mb-3">2. Evidence Updates</h4>
+                <h4 className="text-base font-bold text-primary mb-2">2. Evidence Updates</h4>
+                <p className="text-xs text-muted-foreground mb-3 font-sans italic">
+                  Each piece of evidence shifts your belief. Strong, confident evidence on important criteria has more weight. Supporting evidence increases α (making success more likely), while opposing evidence increases β (making success less likely).
+                </p>
                 {evaluationUpdates.length === 0 ? (
                   <p className="text-muted-foreground">No criteria evaluations.</p>
                 ) : (
@@ -152,7 +158,10 @@ export function CalculationsPane({ state, posterior, credibleInterval, winPercen
 
               {/* Final Parameters */}
               <section>
-                <h4 className="text-base font-bold text-primary mb-3">3. Posterior Distribution</h4>
+                <h4 className="text-base font-bold text-primary mb-2">3. Posterior Distribution</h4>
+                <p className="text-xs text-muted-foreground mb-3 font-sans italic">
+                  Your updated belief after incorporating all evidence. This is the mathematical combination of your prior belief and the evidence you've evaluated. The expected value represents the most likely probability of success.
+                </p>
                 <div className="space-y-1 text-muted-foreground">
                   <p>Final α = {initialAlpha.toFixed(2)} + {evaluationUpdates.reduce((sum, u) => sum + u.alphaChange, 0).toFixed(3)} = <span className="text-primary font-bold">{finalAlpha.toFixed(3)}</span></p>
                   <p>Final β = {initialBeta.toFixed(2)} + {evaluationUpdates.reduce((sum, u) => sum + u.betaChange, 0).toFixed(3)} = <span className="text-primary font-bold">{finalBeta.toFixed(3)}</span></p>
@@ -164,7 +173,10 @@ export function CalculationsPane({ state, posterior, credibleInterval, winPercen
 
               {/* Monte Carlo Results */}
               <section>
-                <h4 className="text-base font-bold text-primary mb-3">4. Monte Carlo Simulation (10,000 samples)</h4>
+                <h4 className="text-base font-bold text-primary mb-2">4. Monte Carlo Simulation (10,000 samples)</h4>
+                <p className="text-xs text-muted-foreground mb-3 font-sans italic">
+                  We simulate 10,000 possible futures by randomly sampling from your posterior distribution. This reveals the full range of possible outcomes, not just the average. The credible interval shows where 95% of outcomes fall; the win percentage shows how often success is more likely than not.
+                </p>
                 <div className="space-y-1 text-muted-foreground">
                   <p>Posterior mean: <span className="text-foreground font-bold">{posterior.toFixed(1)}%</span></p>
                   <p>95% Credible Interval: <span className="text-foreground font-bold">[{credibleInterval[0].toFixed(1)}%, {credibleInterval[1].toFixed(1)}%]</span></p>
@@ -175,7 +187,10 @@ export function CalculationsPane({ state, posterior, credibleInterval, winPercen
               {/* Convergence Diagnostics */}
               {convergenceDiagnostic && (
                 <section>
-                  <h4 className="text-base font-bold text-primary mb-3">5. Convergence Diagnostics</h4>
+                  <h4 className="text-base font-bold text-primary mb-2">5. Convergence Diagnostics</h4>
+                  <p className="text-xs text-muted-foreground mb-3 font-sans italic">
+                    These metrics verify that our simulation ran correctly and produced reliable results. Good diagnostics mean you can trust the numbers above. Poor diagnostics (rare) would suggest the simulation needs more samples.
+                  </p>
                   <div className="space-y-2 text-muted-foreground">
                     <div className="p-3 rounded-lg bg-secondary/30 border border-border/50">
                       <p>
@@ -213,6 +228,9 @@ export function CalculationsPane({ state, posterior, credibleInterval, winPercen
               {/* Formula Summary */}
               <section className="pt-4 border-t border-border">
                 <h4 className="text-xs font-bold text-muted-foreground mb-2">FORMULA SUMMARY</h4>
+                <p className="text-xs text-muted-foreground mb-2 font-sans italic">
+                  Quick reference for the mathematical formulas used throughout the analysis.
+                </p>
                 <div className="text-xs text-muted-foreground space-y-1">
                   <p>• Beta distribution: Prior ~ Beta(α₀, β₀)</p>
                   <p>• Pseudo-count = (strength/5) × (confidence/5) × (importance/100) × 5</p>
