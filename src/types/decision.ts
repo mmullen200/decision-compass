@@ -23,6 +23,12 @@ export interface DecisionState {
   posteriorProbability: number;
   credibleInterval: [number, number];
   samples?: number[];
+  convergenceDiagnostic?: {
+    gewekeZScore: number;
+    isConverged: boolean;
+    effectiveSampleSize: number;
+    mcError: number;
+  };
 }
 
 export interface EvidenceItem {
