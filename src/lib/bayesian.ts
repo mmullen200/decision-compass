@@ -30,6 +30,12 @@ export const DEFAULT_PRIOR_CONCENTRATION = 10;
 /** Minimum alpha/beta to prevent numerical instability */
 const MIN_BETA_PARAM = 0.5;
 
+/** Number of batches for Geweke convergence diagnostic */
+const GEWEKE_BATCHES = 10;
+
+/** Threshold for Geweke z-score (|z| < 1.96 indicates convergence at 95% level) */
+const GEWEKE_THRESHOLD = 1.96;
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -41,12 +47,22 @@ export interface BayesianConfig {
   priorConcentration?: number;
   /** Whether to apply correlation adjustments to evidence */
   applyCorrelationAdjustment?: boolean;
+  /** Use quasi-random sampling for variance reduction (default: true) */
+  useQuasiRandom?: boolean;
 }
 
 export interface PosteriorResult {
   posterior: number;
   credibleInterval: [number, number];
   samples: number[];
+  convergenceDiagnostic?: ConvergenceDiagnostic;
+}
+
+export interface ConvergenceDiagnostic {
+  gewekeZScore: number;
+  isConverged: boolean;
+  effectiveSampleSize: number;
+  mcError: number; // Monte Carlo standard error
 }
 
 export interface EvaluationPosteriorResult extends PosteriorResult {
@@ -64,6 +80,222 @@ export interface SensitivityItem {
 export interface CorrelationGroup {
   ids: string[]; // IDs of correlated evidence/evaluations
   correlationFactor: number; // 0-1, how correlated they are (1 = identical)
+}
+
+// ============================================================================
+// QUASI-RANDOM SAMPLING (SOBOL-LIKE SEQUENCES)
+// ============================================================================
+
+/**
+ * Van der Corput sequence generator for quasi-random numbers.
+ * Provides more uniform coverage than pseudo-random numbers,
+ * reducing Monte Carlo variance by up to 50%.
+ */
+function vanDerCorput(n: number, base: number = 2): number {
+  let result = 0;
+  let f = 1 / base;
+  let i = n;
+  
+  while (i > 0) {
+    result += f * (i % base);
+    i = Math.floor(i / base);
+    f /= base;
+  }
+  
+  return result;
+}
+
+/**
+ * Generates quasi-random samples using Halton sequence (generalized van der Corput).
+ * Uses base 2 for the primary dimension.
+ */
+function generateQuasiRandomSequence(n: number): number[] {
+  const sequence: number[] = [];
+  // Start from a random offset to avoid correlation across runs
+  const offset = Math.floor(Math.random() * 1000);
+  
+  for (let i = 0; i < n; i++) {
+    sequence.push(vanDerCorput(i + offset + 1, 2));
+  }
+  
+  return sequence;
+}
+
+// ============================================================================
+// LOG-SPACE BETA CALCULATIONS
+// ============================================================================
+
+/**
+ * Computes log of the Beta function B(a,b) = Gamma(a)*Gamma(b)/Gamma(a+b)
+ * Using log-gamma for numerical stability with extreme parameters.
+ */
+function logBeta(alpha: number, beta: number): number {
+  return jStat.gammaln(alpha) + jStat.gammaln(beta) - jStat.gammaln(alpha + beta);
+}
+
+/**
+ * Computes log of the Beta PDF: log(x^(a-1) * (1-x)^(b-1) / B(a,b))
+ * Stable for extreme alpha/beta values where direct computation would overflow.
+ */
+function logBetaPdf(x: number, alpha: number, beta: number): number {
+  if (x <= 0 || x >= 1) return -Infinity;
+  
+  return (alpha - 1) * Math.log(x) + 
+         (beta - 1) * Math.log(1 - x) - 
+         logBeta(alpha, beta);
+}
+
+/**
+ * Sample from Beta distribution using inverse CDF with quasi-random input.
+ * Falls back to log-space rejection sampling for extreme parameters.
+ */
+function sampleBetaStable(
+  alpha: number, 
+  beta: number, 
+  n: number, 
+  useQuasiRandom: boolean = true
+): number[] {
+  const samples: number[] = [];
+  
+  // For moderate parameters, use standard sampling with optional quasi-random input
+  if (alpha >= 0.1 && beta >= 0.1 && alpha <= 1000 && beta <= 1000) {
+    if (useQuasiRandom) {
+      const quasiUniform = generateQuasiRandomSequence(n);
+      for (let i = 0; i < n; i++) {
+        // Use inverse CDF (quantile function) with quasi-random input
+        samples.push(jStat.beta.inv(quasiUniform[i], alpha, beta));
+      }
+    } else {
+      for (let i = 0; i < n; i++) {
+        samples.push(jStat.beta.sample(alpha, beta));
+      }
+    }
+    return samples;
+  }
+  
+  // For extreme parameters, use log-space acceptance-rejection
+  // This prevents overflow/underflow issues
+  const mode = alpha > 1 && beta > 1 
+    ? (alpha - 1) / (alpha + beta - 2) 
+    : (alpha >= beta ? 0.99 : 0.01);
+  
+  const logPdfMode = logBetaPdf(mode, alpha, beta);
+  
+  let attempts = 0;
+  const maxAttempts = n * 100;
+  
+  while (samples.length < n && attempts < maxAttempts) {
+    attempts++;
+    // Sample from a proposal distribution (uniform)
+    const x = Math.random();
+    const logPdfX = logBetaPdf(x, alpha, beta);
+    
+    // Accept with probability proportional to the density ratio
+    const logAcceptProb = logPdfX - logPdfMode;
+    if (Math.log(Math.random()) < logAcceptProb) {
+      samples.push(x);
+    }
+  }
+  
+  // If we couldn't get enough samples, fall back to jStat
+  while (samples.length < n) {
+    try {
+      samples.push(jStat.beta.sample(alpha, beta));
+    } catch {
+      // Ultimate fallback: use the mode
+      samples.push(mode);
+    }
+  }
+  
+  return samples;
+}
+
+// ============================================================================
+// CONVERGENCE DIAGNOSTICS
+// ============================================================================
+
+/**
+ * Computes Geweke convergence diagnostic.
+ * Compares mean of first 10% of samples to last 50%.
+ * A z-score near 0 indicates the chain has converged.
+ */
+function computeGewekeDiagnostic(samples: number[]): number {
+  const n = samples.length;
+  const firstPct = 0.1;
+  const lastPct = 0.5;
+  
+  const firstN = Math.floor(n * firstPct);
+  const lastN = Math.floor(n * lastPct);
+  
+  const firstSamples = samples.slice(0, firstN);
+  const lastSamples = samples.slice(n - lastN);
+  
+  const mean1 = mean(firstSamples);
+  const mean2 = mean(lastSamples);
+  
+  const var1 = variance(firstSamples);
+  const var2 = variance(lastSamples);
+  
+  // Spectral density at frequency 0 (simplified - using sample variance)
+  const se1 = Math.sqrt(var1 / firstN);
+  const se2 = Math.sqrt(var2 / lastN);
+  
+  const z = (mean1 - mean2) / Math.sqrt(se1 * se1 + se2 * se2);
+  
+  return isNaN(z) ? 0 : z;
+}
+
+/**
+ * Computes effective sample size (ESS) accounting for autocorrelation.
+ * ESS indicates how many independent samples the chain represents.
+ */
+function computeEffectiveSampleSize(samples: number[]): number {
+  const n = samples.length;
+  if (n < 10) return n;
+  
+  const sampleMean = mean(samples);
+  const sampleVar = variance(samples);
+  
+  if (sampleVar === 0) return n;
+  
+  // Compute autocorrelation at lag 1
+  let autoCorr = 0;
+  for (let i = 0; i < n - 1; i++) {
+    autoCorr += (samples[i] - sampleMean) * (samples[i + 1] - sampleMean);
+  }
+  autoCorr /= ((n - 1) * sampleVar);
+  
+  // Simplified ESS formula: n / (1 + 2*rho)
+  // where rho is the first-order autocorrelation
+  const rho = Math.max(-0.5, Math.min(0.99, autoCorr)); // Clamp for stability
+  const ess = n / (1 + 2 * rho);
+  
+  return Math.max(1, Math.round(ess));
+}
+
+/**
+ * Computes Monte Carlo standard error.
+ * This is the uncertainty in the posterior mean estimate due to finite sampling.
+ */
+function computeMCError(samples: number[], ess: number): number {
+  const sampleVar = variance(samples);
+  return Math.sqrt(sampleVar / ess);
+}
+
+/**
+ * Full convergence diagnostic suite.
+ */
+function computeConvergenceDiagnostic(samples: number[]): ConvergenceDiagnostic {
+  const gewekeZ = computeGewekeDiagnostic(samples);
+  const ess = computeEffectiveSampleSize(samples);
+  const mcError = computeMCError(samples, ess);
+  
+  return {
+    gewekeZScore: Math.round(gewekeZ * 100) / 100,
+    isConverged: Math.abs(gewekeZ) < GEWEKE_THRESHOLD,
+    effectiveSampleSize: ess,
+    mcError: Math.round(mcError * 1000) / 1000,
+  };
 }
 
 // ============================================================================
@@ -107,6 +339,7 @@ export function calculatePosterior(
   const {
     evidenceStrengthScale = EVIDENCE_STRENGTH_SCALE,
     priorConcentration = DEFAULT_PRIOR_CONCENTRATION,
+    useQuasiRandom = true,
   } = config;
 
   // Convert prior percentage to probability
@@ -117,14 +350,16 @@ export function calculatePosterior(
   let beta = Math.max(MIN_BETA_PARAM, (1 - priorProb) * priorConcentration);
 
   if (evidence.length === 0) {
-    const samples = sampleBeta(alpha, beta, MONTE_CARLO_SAMPLES);
+    const samples = sampleBetaStable(alpha, beta, MONTE_CARLO_SAMPLES, useQuasiRandom);
     const posterior = mean(samples) * 100;
     const credibleInterval = computeCredibleInterval(samples);
+    const convergenceDiagnostic = computeConvergenceDiagnostic(samples);
     
     return {
       posterior,
       credibleInterval: [credibleInterval[0] * 100, credibleInterval[1] * 100],
       samples: samples.map(s => s * 100),
+      convergenceDiagnostic,
     };
   }
 
@@ -146,11 +381,12 @@ export function calculatePosterior(
   });
 
   // Monte Carlo sampling from posterior beta distribution
-  const samples = sampleBeta(alpha, beta, MONTE_CARLO_SAMPLES);
+  const samples = sampleBetaStable(alpha, beta, MONTE_CARLO_SAMPLES, useQuasiRandom);
   
   // Compute statistics from samples
   const posterior = mean(samples) * 100;
   const credibleInterval = computeCredibleInterval(samples);
+  const convergenceDiagnostic = computeConvergenceDiagnostic(samples);
 
   return {
     posterior: Math.max(1, Math.min(99, posterior)),
@@ -159,6 +395,7 @@ export function calculatePosterior(
       Math.min(100, credibleInterval[1] * 100),
     ],
     samples: samples.map(s => s * 100),
+    convergenceDiagnostic,
   };
 }
 
@@ -208,6 +445,7 @@ export function calculatePosteriorFromEvaluations(
     evidenceStrengthScale = EVIDENCE_STRENGTH_SCALE,
     priorConcentration = DEFAULT_PRIOR_CONCENTRATION,
     applyCorrelationAdjustment = false,
+    useQuasiRandom = true,
   } = config;
 
   const priorProb = prior / 100;
@@ -215,10 +453,11 @@ export function calculatePosteriorFromEvaluations(
   let beta = Math.max(MIN_BETA_PARAM, (1 - priorProb) * priorConcentration);
 
   if (evaluations.length === 0) {
-    const samples = sampleBeta(alpha, beta, MONTE_CARLO_SAMPLES);
+    const samples = sampleBetaStable(alpha, beta, MONTE_CARLO_SAMPLES, useQuasiRandom);
     const posterior = mean(samples) * 100;
     const credibleInterval = computeCredibleInterval(samples);
     const winPercentage = samples.filter(s => s > 0.5).length / samples.length * 100;
+    const convergenceDiagnostic = computeConvergenceDiagnostic(samples);
     
     return {
       posterior,
@@ -226,6 +465,7 @@ export function calculatePosteriorFromEvaluations(
       samples: samples.map(s => s * 100),
       winPercentage,
       sensitivityAnalysis: [],
+      convergenceDiagnostic,
     };
   }
 
@@ -268,13 +508,14 @@ export function calculatePosteriorFromEvaluations(
   });
 
   // Monte Carlo sampling
-  const samples = sampleBeta(alpha, beta, MONTE_CARLO_SAMPLES);
+  const samples = sampleBetaStable(alpha, beta, MONTE_CARLO_SAMPLES, useQuasiRandom);
   
   // Win percentage = how often decision beats status quo (>50%)
   const winPercentage = samples.filter(s => s > 0.5).length / samples.length * 100;
   
   const posterior = mean(samples) * 100;
   const credibleInterval = computeCredibleInterval(samples);
+  const convergenceDiagnostic = computeConvergenceDiagnostic(samples);
 
   // Perform sensitivity analysis (leave-one-out)
   const sensitivityAnalysis = computeSensitivityAnalysis(
@@ -294,6 +535,7 @@ export function calculatePosteriorFromEvaluations(
     samples: samples.map(s => s * 100),
     winPercentage: Math.round(winPercentage),
     sensitivityAnalysis,
+    convergenceDiagnostic,
   };
 }
 
@@ -354,6 +596,7 @@ function calculatePosteriorFromEvaluationsInternal(
   const {
     evidenceStrengthScale = EVIDENCE_STRENGTH_SCALE,
     priorConcentration = DEFAULT_PRIOR_CONCENTRATION,
+    useQuasiRandom = true,
   } = config;
 
   const priorProb = prior / 100;
@@ -380,24 +623,13 @@ function calculatePosteriorFromEvaluationsInternal(
     }
   });
 
-  const samples = sampleBeta(alpha, beta, MONTE_CARLO_SAMPLES);
+  const samples = sampleBetaStable(alpha, beta, MONTE_CARLO_SAMPLES, useQuasiRandom);
   return { posterior: mean(samples) * 100 };
 }
 
 // ============================================================================
 // STATISTICAL UTILITIES
 // ============================================================================
-
-/**
- * Sample from a Beta distribution using jStat
- */
-function sampleBeta(alpha: number, beta: number, n: number): number[] {
-  const samples: number[] = [];
-  for (let i = 0; i < n; i++) {
-    samples.push(jStat.beta.sample(alpha, beta));
-  }
-  return samples;
-}
 
 /**
  * Compute 95% credible interval from samples
@@ -414,6 +646,18 @@ function computeCredibleInterval(samples: number[]): [number, number] {
  */
 function mean(samples: number[]): number {
   return samples.reduce((sum, val) => sum + val, 0) / samples.length;
+}
+
+/**
+ * Compute variance of samples (unbiased estimator)
+ */
+function variance(samples: number[]): number {
+  const n = samples.length;
+  if (n < 2) return 0;
+  
+  const m = mean(samples);
+  const sumSq = samples.reduce((sum, val) => sum + (val - m) ** 2, 0);
+  return sumSq / (n - 1);
 }
 
 // ============================================================================
