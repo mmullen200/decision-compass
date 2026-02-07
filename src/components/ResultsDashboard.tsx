@@ -1,11 +1,13 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DecisionState } from '@/types/decision';
 import { Button } from '@/components/ui/button';
 import { calculatePosteriorFromEvaluations, getConfidenceColor, generateDistributionData } from '@/lib/bayesian';
-import { RotateCcw, FlaskConical, Trophy, Scale, ChevronRight } from 'lucide-react';
+import { RotateCcw, FlaskConical, Trophy, Scale, ChevronRight, History } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { CalculationsPane } from './CalculationsPane';
+import { useDecisionPersistence } from '@/hooks/useDecisionPersistence';
 
 interface ResultsDashboardProps {
   state: DecisionState;
@@ -15,6 +17,9 @@ interface ResultsDashboardProps {
 }
 
 export function ResultsDashboard({ state, onBack, onReset, onDesignExperiments }: ResultsDashboardProps) {
+  const navigate = useNavigate();
+  const { saveDecision, saving } = useDecisionPersistence();
+  const hasSaved = useRef(false);
   
   const { decision, initialConfidence, criteria, criteriaEvaluations } = state;
 
@@ -25,6 +30,14 @@ export function ResultsDashboard({ state, onBack, onReset, onDesignExperiments }
 
   const { posterior, credibleInterval, samples, winPercentage } = results;
   const posteriorColor = getConfidenceColor(posterior);
+
+  // Auto-save decision when results are first shown
+  useEffect(() => {
+    if (!hasSaved.current && decision && criteriaEvaluations.length > 0) {
+      hasSaved.current = true;
+      saveDecision(state, winPercentage);
+    }
+  }, [decision, criteriaEvaluations.length, saveDecision, state, winPercentage]);
 
   // Distribution data for visualization
   const distributionData = generateDistributionData(posterior, credibleInterval, samples);
@@ -235,15 +248,21 @@ export function ResultsDashboard({ state, onBack, onReset, onDesignExperiments }
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 1.1 }}
-        className="flex justify-between"
+        className="flex flex-wrap justify-between gap-4"
       >
         <Button onClick={onBack} variant="outline" size="lg">
           Adjust evaluations
         </Button>
-        <Button onClick={onReset} variant="secondary" size="lg">
-          <RotateCcw className="w-4 h-4 mr-2" />
-          Start over
-        </Button>
+        <div className="flex gap-3">
+          <Button onClick={() => navigate('/history')} variant="secondary" size="lg">
+            <History className="w-4 h-4 mr-2" />
+            View history
+          </Button>
+          <Button onClick={onReset} variant="secondary" size="lg">
+            <RotateCcw className="w-4 h-4 mr-2" />
+            Start over
+          </Button>
+        </div>
       </motion.div>
 
       {/* Calculations Debug Pane */}

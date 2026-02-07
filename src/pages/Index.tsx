@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DecisionEntry } from '@/components/DecisionEntry';
 import { CriteriaWizard } from '@/components/CriteriaWizard';
@@ -8,12 +9,16 @@ import { ExperimentDesign } from '@/components/ExperimentDesign';
 import { MonteCarloVisualization } from '@/components/MonteCarloVisualization';
 import { DecisionState, Criterion, CriterionEvaluation as CriterionEval } from '@/types/decision';
 import { calculatePosterior, calculatePosteriorFromEvaluations } from '@/lib/bayesian';
-import { Plane } from 'lucide-react';
+import { Plane, History, LogOut } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
 
 const STEPS = ['decision', 'criteria', 'evaluation', 'simulating', 'results', 'experiments'] as const;
 type Step = typeof STEPS[number];
 
 const Index = () => {
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
   const [step, setStep] = useState<Step>('decision');
   const [decisionState, setDecisionState] = useState<DecisionState>({
     decision: '',
@@ -119,20 +124,37 @@ const Index = () => {
             </div>
           </div>
 
-          {/* Step indicator */}
-          <div className="flex items-center gap-2">
-            {STEPS.map((s, i) => (
-              <div
-                key={s}
-                className={`h-2 rounded-full transition-all duration-500 ${
-                  i === currentStepIndex
-                    ? 'w-8 bg-primary'
-                    : i < currentStepIndex
-                    ? 'w-2 bg-primary/50'
-                    : 'w-2 bg-secondary'
-                }`}
-              />
-            ))}
+          {/* Step indicator and actions */}
+          <div className="flex items-center gap-4">
+            <div className="hidden sm:flex items-center gap-2">
+              {STEPS.map((s, i) => (
+                <div
+                  key={s}
+                  className={`h-2 rounded-full transition-all duration-500 ${
+                    i === currentStepIndex
+                      ? 'w-8 bg-primary'
+                      : i < currentStepIndex
+                      ? 'w-2 bg-primary/50'
+                      : 'w-2 bg-secondary'
+                  }`}
+                />
+              ))}
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => navigate('/history')}
+                className="hidden sm:flex"
+              >
+                <History className="w-4 h-4 mr-2" />
+                History
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => signOut()}>
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </header>
