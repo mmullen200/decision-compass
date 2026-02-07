@@ -118,13 +118,14 @@ export default function History() {
           {/* Decision list */}
           {!loading && decisions.length > 0 && (
             <div className="space-y-4">
-              {decisions.map((d, i) => (
-                <motion.div
-                  key={d.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                  className="glass-card rounded-xl p-6 hover:border-primary/30 transition-colors"
+                {decisions.map((d, i) => (
+                  <motion.div
+                    key={d.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                    className="glass-card rounded-xl p-6 hover:border-primary/30 transition-colors cursor-pointer"
+                    onClick={() => navigate('/', { state: { savedDecision: d } })}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
