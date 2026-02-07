@@ -9,9 +9,15 @@ interface CalculationsPaneProps {
   posterior: number;
   credibleInterval: [number, number];
   winPercentage: number;
+  convergenceDiagnostic?: {
+    gewekeZScore: number;
+    isConverged: boolean;
+    effectiveSampleSize: number;
+    mcError: number;
+  };
 }
 
-export function CalculationsPane({ state, posterior, credibleInterval, winPercentage }: CalculationsPaneProps) {
+export function CalculationsPane({ state, posterior, credibleInterval, winPercentage, convergenceDiagnostic }: CalculationsPaneProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const { initialConfidence, criteria, criteriaEvaluations } = state;
@@ -166,6 +172,44 @@ export function CalculationsPane({ state, posterior, credibleInterval, winPercen
                 </div>
               </section>
 
+              {/* Convergence Diagnostics */}
+              {convergenceDiagnostic && (
+                <section>
+                  <h4 className="text-base font-bold text-primary mb-3">5. Convergence Diagnostics</h4>
+                  <div className="space-y-2 text-muted-foreground">
+                    <div className="p-3 rounded-lg bg-secondary/30 border border-border/50">
+                      <p>
+                        <span className="text-foreground font-mono">Geweke Z-Score:</span> <span className="text-foreground font-bold">{convergenceDiagnostic.gewekeZScore.toFixed(3)}</span>
+                        <span className="text-xs ml-2 text-muted-foreground">
+                          {Math.abs(convergenceDiagnostic.gewekeZScore) < 1.96 ? '✓ Converged' : '⚠ Check convergence'}
+                        </span>
+                      </p>
+                      <p className="text-xs mt-1 text-muted-foreground">Detects if first 10% and last 50% of samples differ significantly.</p>
+                    </div>
+                    
+                    <div className="p-3 rounded-lg bg-secondary/30 border border-border/50">
+                      <p>
+                        <span className="text-foreground font-mono">Effective Sample Size (ESS):</span> <span className="text-foreground font-bold">{convergenceDiagnostic.effectiveSampleSize.toFixed(0)}</span>
+                        <span className="text-xs ml-2 text-muted-foreground">
+                          {convergenceDiagnostic.effectiveSampleSize > 1000 ? '✓ High quality' : convergenceDiagnostic.effectiveSampleSize > 400 ? '✓ Adequate' : '⚠ Low'}
+                        </span>
+                      </p>
+                      <p className="text-xs mt-1 text-muted-foreground">Accounts for autocorrelation. Higher is better (target: &gt;400).</p>
+                    </div>
+
+                    <div className="p-3 rounded-lg bg-secondary/30 border border-border/50">
+                      <p>
+                        <span className="text-foreground font-mono">MC Standard Error:</span> <span className="text-foreground font-bold">{(convergenceDiagnostic.mcError * 100).toFixed(3)}%</span>
+                        <span className="text-xs ml-2 text-muted-foreground">
+                          {convergenceDiagnostic.mcError < 0.01 ? '✓ Excellent' : convergenceDiagnostic.mcError < 0.02 ? '✓ Good' : '⚠ Fair'}
+                        </span>
+                      </p>
+                      <p className="text-xs mt-1 text-muted-foreground">Estimated error in posterior mean. Lower is better.</p>
+                    </div>
+                  </div>
+                </section>
+              )}
+
               {/* Formula Summary */}
               <section className="pt-4 border-t border-border">
                 <h4 className="text-xs font-bold text-muted-foreground mb-2">FORMULA SUMMARY</h4>
@@ -174,6 +218,9 @@ export function CalculationsPane({ state, posterior, credibleInterval, winPercen
                   <p>• Pseudo-count = (strength/5) × (confidence/5) × (importance/100) × 5</p>
                   <p>• Supporting evidence: α += pseudo-count</p>
                   <p>• Opposing evidence: β += pseudo-count</p>
+                  <p>• Halton sequence: Quasi-random sampling for variance reduction</p>
+                  <p>• Geweke: |Z| &lt; 1.96 indicates convergence</p>
+                  <p>• ESS: &gt;400 samples adequate, &gt;1000 excellent</p>
                   <p>• Win % = proportion of 10,000 samples where value &gt; 0.5</p>
                 </div>
               </section>

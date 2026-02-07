@@ -252,6 +252,7 @@ export function ResultsDashboard({ state, onBack, onReset, onDesignExperiments }
         posterior={posterior}
         credibleInterval={credibleInterval}
         winPercentage={winPercentage}
+        convergenceDiagnostic={state.convergenceDiagnostic}
       />
     </div>
   );

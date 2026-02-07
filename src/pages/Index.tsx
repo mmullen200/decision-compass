@@ -33,7 +33,7 @@ const Index = () => {
     if (nextIndex < STEPS.length) {
       if (STEPS[nextIndex] === 'simulating') {
         // Calculate posterior with evaluations before showing simulation
-        const { posterior, credibleInterval, samples } = calculatePosterior(
+        const { posterior, credibleInterval, samples, convergenceDiagnostic } = calculatePosterior(
           decisionState.initialConfidence,
           decisionState.evidence
         );
@@ -42,6 +42,7 @@ const Index = () => {
           posteriorProbability: posterior,
           credibleInterval,
           samples,
+          convergenceDiagnostic,
         }));
       }
       setStep(STEPS[nextIndex]);
