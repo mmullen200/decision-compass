@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 
 interface MonteCarloVisualizationProps {
@@ -26,7 +26,6 @@ export function MonteCarloVisualization({
   const animationFrameRef = useRef<number>();
   const startTimeRef = useRef<number>(0);
   const pathIdRef = useRef<number>(0);
-  const [completed, setCompleted] = useState(false);
 
   // Generate a wiggly path using random walk with drift
   const generatePath = useCallback((width: number, height: number): { x: number; y: number }[] => {
@@ -120,7 +119,6 @@ export function MonteCarloVisualization({
     pathsRef.current = [];
     pathIdRef.current = 0;
     startTimeRef.current = performance.now();
-    setCompleted(false);
 
     const pathInterval = duration / pathCount;
     const pathDrawDuration = 800; // How long each path takes to draw
@@ -163,7 +161,6 @@ export function MonteCarloVisualization({
 
       // Check if animation is complete
       if (elapsed >= duration + pathDrawDuration + fadeOutDuration) {
-        setCompleted(true);
         onComplete?.();
         return;
       }
@@ -180,12 +177,14 @@ export function MonteCarloVisualization({
     };
   }, [isRunning, duration, pathCount, generatePath, drawPath, onComplete]);
 
-  if (!isRunning && completed) return null;
+  // Critical: when not running, render nothing. Keeping a full-screen (even transparent)
+  // fixed overlay mounted blocks taps/clicks on inputs across devices.
+  if (!isRunning) return null;
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
-      animate={{ opacity: isRunning ? 1 : 0 }}
+      animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.5 }}
       className="fixed inset-0 z-50 bg-background flex flex-col items-center justify-center"
