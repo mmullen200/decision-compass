@@ -19,21 +19,49 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 
-function getOutcomeDescription(winPercentage: number | null, criteriaCount: number): string {
-  if (winPercentage === null) return 'Analysis incomplete — not enough data was provided to generate a meaningful probability estimate.';
+function getOutcomeDescription(decision: SavedDecision): string {
+  const { winPercentage, criteria, evaluations, initialConfidence } = decision;
   
+  if (winPercentage === null) {
+    return 'Analysis incomplete — the Bayesian model requires criterion evaluations to update the prior probability. Without evidence inputs, the posterior cannot be calculated.';
+  }
+
+  // Analyze the criteria and evaluations
+  const supportingEvals = evaluations.filter(e => e.supportsDecision);
+  const opposingEvals = evaluations.filter(e => !e.supportsDecision);
+  
+  // Find strongest factors
+  const sortedByImpact = evaluations.map(e => {
+    const criterion = criteria.find(c => c.id === e.criterionId);
+    const impact = e.strength * e.confidence * (criterion?.importance || 50) / 100;
+    return { eval: e, criterion, impact };
+  }).sort((a, b) => b.impact - a.impact);
+
+  const topSupporting = sortedByImpact.filter(s => s.eval.supportsDecision).slice(0, 2);
+  const topOpposing = sortedByImpact.filter(s => !s.eval.supportsDecision).slice(0, 2);
+
+  const shift = winPercentage - initialConfidence;
+  const shiftDirection = shift >= 0 ? 'increased' : 'decreased';
+  const shiftAmount = Math.abs(Math.round(shift));
+
   if (winPercentage >= 80) {
-    return `Strong support — the evidence across your ${criteriaCount} criteria consistently points toward this being the right choice. Most factors align favorably, and the analysis suggests you can move forward with high confidence in a positive outcome.`;
+    const supportNames = topSupporting.map(s => s.criterion?.name).filter(Boolean).join(' and ');
+    return `Strong support — The Bayesian model started with your ${Math.round(initialConfidence)}% prior and ${shiftDirection} it by ${shiftAmount} percentage points after weighing ${criteria.length} criteria. ${supportingEvals.length} of ${evaluations.length} evaluations supported this decision, with ${supportNames || 'key factors'} contributing the strongest positive evidence. The Monte Carlo simulation's posterior distribution shows high probability mass above 50%, indicating consistent alignment between your evidence and the decision's success.`;
   } else if (winPercentage >= 65) {
-    return `Favorable outlook — the balance of evidence leans toward proceeding. While not every criterion was strongly supportive, the overall weight of factors suggests this decision is more likely to succeed than not.`;
+    const supportNames = topSupporting.map(s => s.criterion?.name).filter(Boolean).join(' and ');
+    const concernNames = topOpposing.map(s => s.criterion?.name).filter(Boolean).join(' and ');
+    return `Favorable outlook — Starting from ${Math.round(initialConfidence)}% confidence, the model ${shiftDirection} your probability by ${shiftAmount} points. While ${supportNames || 'supporting criteria'} provided strong positive evidence, ${concernNames ? `concerns around ${concernNames}` : 'some factors'} introduced uncertainty. The Beta-Binomial update weighted each criterion by its importance and your confidence level, resulting in a posterior that favors proceeding but suggests monitoring the weaker areas.`;
   } else if (winPercentage >= 50) {
-    return `Slight edge — this decision is marginally supported, but the margin is thin. Consider running experiments or gathering additional information on your weaker criteria before committing fully.`;
+    return `Slight edge — The Bayesian analysis ${shiftDirection} your initial ${Math.round(initialConfidence)}% estimate by ${shiftAmount} points, landing just above the decision threshold. With ${supportingEvals.length} supporting and ${opposingEvals.length} opposing evaluations across ${criteria.length} criteria, the evidence is nearly balanced. The model's pseudo-count calculations show that neither direction accumulated enough weighted evidence to create strong separation. Consider running experiments on criteria where your confidence was lowest to gather stronger signals.`;
   } else if (winPercentage >= 35) {
-    return `Mixed signals — the evidence slightly favors the status quo over making this change. Some criteria support the decision, but others raise enough concern to warrant careful reconsideration or modification.`;
+    const concernNames = topOpposing.map(s => s.criterion?.name).filter(Boolean).join(' and ');
+    return `Mixed signals — Despite starting at ${Math.round(initialConfidence)}%, the model ${shiftDirection} your probability by ${shiftAmount} points based on the evidence provided. ${concernNames ? `${concernNames}` : 'Key criteria'} contributed notable negative weight to the posterior. The Monte Carlo simulation shows the 95% credible interval spanning both sides of 50%, indicating genuine uncertainty. The current evidence slightly favors the status quo, though the margin is small enough that additional positive evidence could shift the balance.`;
   } else if (winPercentage >= 20) {
-    return `Caution advised — multiple criteria suggest this decision may not lead to the outcomes you want. Consider addressing the specific concerns raised or exploring alternative approaches before proceeding.`;
+    const concernNames = topOpposing.map(s => s.criterion?.name).filter(Boolean).join(', ');
+    return `Caution advised — The Bayesian update moved your probability from ${Math.round(initialConfidence)}% down to ${Math.round(winPercentage)}%, a ${shiftAmount}-point ${shiftDirection}. ${opposingEvals.length} of ${evaluations.length} criterion evaluations went against this decision, with ${concernNames || 'multiple factors'} contributing the strongest negative evidence. The model's importance-weighted pseudo-counts accumulated more evidence against than for, suggesting you should address these specific concerns or explore alternative approaches before proceeding.`;
   } else {
-    return `Strong headwinds — the analysis indicates significant obstacles across most criteria. The evidence suggests this path is unlikely to succeed in its current form and may benefit from substantial revision.`;
+    const concernNames = topOpposing.map(s => s.criterion?.name).filter(Boolean).join(', ');
+    return `Strong headwinds — The analysis shows a significant ${shiftAmount}-point drop from your ${Math.round(initialConfidence)}% prior to ${Math.round(winPercentage)}%. Across ${criteria.length} criteria, ${opposingEvals.length} evaluations opposed this decision, with ${concernNames || 'critical factors'} driving the largest negative updates to the Beta distribution's α and β parameters. The posterior probability mass sits firmly below the decision threshold, indicating that this path is unlikely to succeed without substantial changes to address the fundamental concerns raised by your evidence.`;
   }
 }
 
@@ -156,7 +184,7 @@ export default function History() {
                         {format(new Date(d.createdAt), 'MMM d, yyyy · h:mm a')}
                       </p>
                       <p className="text-sm text-foreground/80 italic">
-                        {getOutcomeDescription(d.winPercentage, d.criteria.length)}
+                        {getOutcomeDescription(d)}
                       </p>
                     </div>
 
