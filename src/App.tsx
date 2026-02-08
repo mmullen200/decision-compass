@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import History from "./pages/History";
+import Experiments from "./pages/Experiments";
 import NotFound from "./pages/NotFound";
 import { ReactNode } from "react";
 
@@ -53,6 +54,7 @@ const AppRoutes = () => (
     <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
     <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
     <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
+    <Route path="/experiments" element={<ProtectedRoute><Experiments /></ProtectedRoute>} />
     <Route path="*" element={<NotFound />} />
   </Routes>
 );

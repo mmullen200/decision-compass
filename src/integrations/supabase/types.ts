@@ -145,6 +145,56 @@ export type Database = {
         }
         Relationships: []
       }
+      experiments: {
+        Row: {
+          created_at: string
+          decision_id: string | null
+          description: string | null
+          difficulty: string | null
+          id: string
+          status: string
+          target_criterion: string | null
+          time_estimate: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          decision_id?: string | null
+          description?: string | null
+          difficulty?: string | null
+          id?: string
+          status?: string
+          target_criterion?: string | null
+          time_estimate?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          decision_id?: string | null
+          description?: string | null
+          difficulty?: string | null
+          id?: string
+          status?: string
+          target_criterion?: string | null
+          time_estimate?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "experiments_decision_id_fkey"
+            columns: ["decision_id"]
+            isOneToOne: false
+            referencedRelation: "decisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

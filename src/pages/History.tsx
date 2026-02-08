@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
-import { Plane, History as HistoryIcon, Plus, Trash2, ChevronRight, LogOut } from 'lucide-react';
+import { Plane, History as HistoryIcon, Plus, Trash2, ChevronRight, LogOut, FlaskConical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDecisionPersistence, SavedDecision } from '@/hooks/useDecisionPersistence';
@@ -83,6 +83,10 @@ export default function History() {
           </div>
 
           <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" onClick={() => navigate('/experiments')}>
+              <FlaskConical className="w-4 h-4 mr-2" />
+              Experiments
+            </Button>
             <span className="text-sm text-muted-foreground hidden md:block">{user?.email}</span>
             <Button variant="ghost" size="sm" onClick={handleSignOut}>
               <LogOut className="w-4 h-4 mr-2" />
