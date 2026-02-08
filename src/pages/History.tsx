@@ -20,20 +20,20 @@ import {
 } from '@/components/ui/alert-dialog';
 
 function getOutcomeDescription(winPercentage: number | null, criteriaCount: number): string {
-  if (winPercentage === null) return 'Analysis incomplete';
+  if (winPercentage === null) return 'Analysis incomplete — not enough data was provided to generate a meaningful probability estimate.';
   
   if (winPercentage >= 80) {
-    return `Strong support — analysis indicates high confidence this is the right choice`;
+    return `Strong support — the evidence across your ${criteriaCount} criteria consistently points toward this being the right choice. Most factors align favorably, and the analysis suggests you can move forward with high confidence in a positive outcome.`;
   } else if (winPercentage >= 65) {
-    return `Favorable outlook — evidence leans toward proceeding with this decision`;
+    return `Favorable outlook — the balance of evidence leans toward proceeding. While not every criterion was strongly supportive, the overall weight of factors suggests this decision is more likely to succeed than not.`;
   } else if (winPercentage >= 50) {
-    return `Slight edge — marginally supported, but consider gathering more information`;
+    return `Slight edge — this decision is marginally supported, but the margin is thin. Consider running experiments or gathering additional information on your weaker criteria before committing fully.`;
   } else if (winPercentage >= 35) {
-    return `Mixed signals — evidence slightly favors the status quo over this change`;
+    return `Mixed signals — the evidence slightly favors the status quo over making this change. Some criteria support the decision, but others raise enough concern to warrant careful reconsideration or modification.`;
   } else if (winPercentage >= 20) {
-    return `Caution advised — analysis suggests reconsidering or adjusting this decision`;
+    return `Caution advised — multiple criteria suggest this decision may not lead to the outcomes you want. Consider addressing the specific concerns raised or exploring alternative approaches before proceeding.`;
   } else {
-    return `Strong headwinds — evidence indicates this path may not lead to desired outcomes`;
+    return `Strong headwinds — the analysis indicates significant obstacles across most criteria. The evidence suggests this path is unlikely to succeed in its current form and may benefit from substantial revision.`;
   }
 }
 
