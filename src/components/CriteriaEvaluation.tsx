@@ -1,31 +1,32 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, forwardRef, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Slider } from '@/components/ui/slider';
 import { ArrowLeft, ArrowRight, Loader2, Lightbulb, CheckCircle2 } from 'lucide-react';
-import { Criterion, CriterionEvaluation } from '@/types/decision';
+import { Criterion, CriterionEvaluation as CriterionEvaluationType } from '@/types/decision';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 interface CriteriaEvaluationProps {
   decision: string;
   criteria: Criterion[];
-  initialEvaluations: CriterionEvaluation[];
-  onSubmit: (evaluations: CriterionEvaluation[]) => void;
+  initialEvaluations: CriterionEvaluationType[];
+  onSubmit: (evaluations: CriterionEvaluationType[]) => void;
   onBack: () => void;
 }
 
-export function CriteriaEvaluation({
+export const CriteriaEvaluation = forwardRef<HTMLDivElement, CriteriaEvaluationProps>(({
   decision,
   criteria,
   initialEvaluations,
   onSubmit,
   onBack,
-}: CriteriaEvaluationProps) {
+}, ref) => {
+  const isMountedRef = useRef(true);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [evaluations, setEvaluations] = useState<CriterionEvaluation[]>(
+  const [evaluations, setEvaluations] = useState<CriterionEvaluationType[]>(
     initialEvaluations.length > 0 
       ? initialEvaluations 
       : criteria.map(c => ({
@@ -41,6 +42,14 @@ export function CriteriaEvaluation({
   const currentCriterion = criteria[currentIndex];
   const currentEvaluation = evaluations.find(e => e.criterionId === currentCriterion?.id);
   const isLastCriterion = currentIndex === criteria.length - 1;
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (currentCriterion) {
@@ -66,6 +75,9 @@ export function CriteriaEvaluation({
         },
       });
 
+      // Check if component is still mounted before updating state
+      if (!isMountedRef.current) return;
+
       if (error) {
         console.error('Error fetching facts:', error);
         toast.error('Failed to generate insights');
@@ -76,14 +88,19 @@ export function CriteriaEvaluation({
         setFacts(data.facts);
       }
     } catch (err) {
+      // Check if component is still mounted before updating state
+      if (!isMountedRef.current) return;
+      
       console.error('Error:', err);
       toast.error('Failed to connect to AI service');
     } finally {
-      setIsLoadingFacts(false);
+      if (isMountedRef.current) {
+        setIsLoadingFacts(false);
+      }
     }
   };
 
-  const updateEvaluation = (updates: Partial<CriterionEvaluation>) => {
+  const updateEvaluation = (updates: Partial<CriterionEvaluationType>) => {
     setEvaluations(prev =>
       prev.map(e =>
         e.criterionId === currentCriterion?.id
@@ -114,7 +131,7 @@ export function CriteriaEvaluation({
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div ref={ref} className="max-w-2xl mx-auto">
       {/* Progress indicator */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
@@ -294,4 +311,6 @@ export function CriteriaEvaluation({
       </motion.div>
     </div>
   );
-}
+});
+
+CriteriaEvaluation.displayName = 'CriteriaEvaluation';
