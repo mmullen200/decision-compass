@@ -26,22 +26,38 @@ export const CriteriaEvaluation = forwardRef<HTMLDivElement, CriteriaEvaluationP
 }, ref) => {
   const isMountedRef = useRef(true);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [evaluations, setEvaluations] = useState<CriterionEvaluationType[]>(
-    initialEvaluations.length > 0 
-      ? initialEvaluations 
-      : criteria.map(c => ({
+  
+  // Initialize evaluations from props or create defaults for all criteria
+  const getInitialEvaluations = (): CriterionEvaluationType[] => {
+    if (initialEvaluations.length > 0) {
+      // Ensure we have evaluations for ALL criteria, not just some
+      return criteria.map(c => {
+        const existing = initialEvaluations.find(e => e.criterionId === c.id);
+        return existing ?? {
           criterionId: c.id,
           supportsDecision: true,
           strength: 50,
           confidence: 50,
-        }))
-  );
+        };
+      });
+    }
+    return criteria.map(c => ({
+      criterionId: c.id,
+      supportsDecision: true,
+      strength: 50,
+      confidence: 50,
+    }));
+  };
+  
+  const [evaluations, setEvaluations] = useState<CriterionEvaluationType[]>(getInitialEvaluations);
   const [facts, setFacts] = useState<string[]>([]);
   const [isLoadingFacts, setIsLoadingFacts] = useState(false);
 
-  const currentCriterion = criteria[currentIndex];
+  // Ensure currentIndex is always valid
+  const safeCurrentIndex = Math.min(currentIndex, Math.max(0, criteria.length - 1));
+  const currentCriterion = criteria[safeCurrentIndex];
   const currentEvaluation = evaluations.find(e => e.criterionId === currentCriterion?.id);
-  const isLastCriterion = currentIndex === criteria.length - 1;
+  const isLastCriterion = safeCurrentIndex === criteria.length - 1;
 
   // Cleanup on unmount
   useEffect(() => {
@@ -51,11 +67,36 @@ export const CriteriaEvaluation = forwardRef<HTMLDivElement, CriteriaEvaluationP
     };
   }, []);
 
+  // Sync evaluations if criteria change
+  useEffect(() => {
+    if (criteria.length > 0) {
+      setEvaluations(prev => {
+        // Ensure every criterion has an evaluation
+        return criteria.map(c => {
+          const existing = prev.find(e => e.criterionId === c.id);
+          return existing ?? {
+            criterionId: c.id,
+            supportsDecision: true,
+            strength: 50,
+            confidence: 50,
+          };
+        });
+      });
+    }
+  }, [criteria]);
+
+  // Reset index if it goes out of bounds
+  useEffect(() => {
+    if (currentIndex >= criteria.length && criteria.length > 0) {
+      setCurrentIndex(criteria.length - 1);
+    }
+  }, [currentIndex, criteria.length]);
+
   useEffect(() => {
     if (currentCriterion) {
       fetchFacts();
     }
-  }, [currentIndex, currentCriterion?.id]);
+  }, [safeCurrentIndex, currentCriterion?.id]);
 
   const fetchFacts = async () => {
     if (!currentCriterion) return;
@@ -126,8 +167,23 @@ export const CriteriaEvaluation = forwardRef<HTMLDivElement, CriteriaEvaluationP
     }
   };
 
-  if (!currentCriterion || !currentEvaluation) {
-    return null;
+  // Safety check - show loading state instead of returning null
+  if (!currentCriterion || !currentEvaluation || criteria.length === 0) {
+    console.log('CriteriaEvaluation safety check:', { 
+      currentCriterion: !!currentCriterion, 
+      currentEvaluation: !!currentEvaluation,
+      criteriaLength: criteria.length,
+      safeCurrentIndex,
+      evaluationsLength: evaluations.length
+    });
+    return (
+      <div ref={ref} className="max-w-2xl mx-auto flex items-center justify-center py-20">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading criteria...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
