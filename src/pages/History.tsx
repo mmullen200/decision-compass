@@ -23,14 +23,14 @@ function getOutcomeDescription(decision: SavedDecision): string {
   const { winPercentage, criteria, evaluations, initialConfidence } = decision;
   
   if (winPercentage === null) {
-    return 'Analysis incomplete — the Bayesian model requires criterion evaluations to update the prior probability. Without evidence inputs, the posterior cannot be calculated.';
+    return 'Analysis incomplete — we need your assessment of each criterion to calculate how likely this decision is to succeed.';
   }
 
   // Analyze the criteria and evaluations
   const supportingEvals = evaluations.filter(e => e.supportsDecision);
   const opposingEvals = evaluations.filter(e => !e.supportsDecision);
   
-  // Find strongest factors
+  // Find strongest factors by impact
   const sortedByImpact = evaluations.map(e => {
     const criterion = criteria.find(c => c.id === e.criterionId);
     const impact = e.strength * e.confidence * (criterion?.importance || 50) / 100;
@@ -41,27 +41,27 @@ function getOutcomeDescription(decision: SavedDecision): string {
   const topOpposing = sortedByImpact.filter(s => !s.eval.supportsDecision).slice(0, 2);
 
   const shift = winPercentage - initialConfidence;
-  const shiftDirection = shift >= 0 ? 'increased' : 'decreased';
+  const shiftDirection = shift >= 0 ? 'strengthened' : 'weakened';
   const shiftAmount = Math.abs(Math.round(shift));
 
   if (winPercentage >= 80) {
     const supportNames = topSupporting.map(s => s.criterion?.name).filter(Boolean).join(' and ');
-    return `Strong support — The Bayesian model started with your ${Math.round(initialConfidence)}% prior and ${shiftDirection} it by ${shiftAmount} percentage points after weighing ${criteria.length} criteria. ${supportingEvals.length} of ${evaluations.length} evaluations supported this decision, with ${supportNames || 'key factors'} contributing the strongest positive evidence. The Monte Carlo simulation's posterior distribution shows high probability mass above 50%, indicating consistent alignment between your evidence and the decision's success.`;
+    return `Strong support — You started with ${Math.round(initialConfidence)}% confidence, and after weighing all ${criteria.length} factors you identified, the evidence ${shiftDirection} your case by ${shiftAmount} points. ${supportingEvals.length} out of ${evaluations.length} criteria worked in your favor, especially ${supportNames || 'your key factors'}. When we ran thousands of "what if" scenarios using your inputs, the overwhelming majority pointed to success. This is a green light.`;
   } else if (winPercentage >= 65) {
     const supportNames = topSupporting.map(s => s.criterion?.name).filter(Boolean).join(' and ');
     const concernNames = topOpposing.map(s => s.criterion?.name).filter(Boolean).join(' and ');
-    return `Favorable outlook — Starting from ${Math.round(initialConfidence)}% confidence, the model ${shiftDirection} your probability by ${shiftAmount} points. While ${supportNames || 'supporting criteria'} provided strong positive evidence, ${concernNames ? `concerns around ${concernNames}` : 'some factors'} introduced uncertainty. The Beta-Binomial update weighted each criterion by its importance and your confidence level, resulting in a posterior that favors proceeding but suggests monitoring the weaker areas.`;
+    return `Favorable outlook — Starting from your ${Math.round(initialConfidence)}% gut feeling, we adjusted based on how each criterion actually stacks up. ${supportNames || 'Your supporting factors'} pulled the odds in your favor, though ${concernNames ? `${concernNames}` : 'some concerns'} created drag. The math says proceed, but the evidence isn't unanimous—keep an eye on the weaker areas as you move forward.`;
   } else if (winPercentage >= 50) {
-    return `Slight edge — The Bayesian analysis ${shiftDirection} your initial ${Math.round(initialConfidence)}% estimate by ${shiftAmount} points, landing just above the decision threshold. With ${supportingEvals.length} supporting and ${opposingEvals.length} opposing evaluations across ${criteria.length} criteria, the evidence is nearly balanced. The model's pseudo-count calculations show that neither direction accumulated enough weighted evidence to create strong separation. Consider running experiments on criteria where your confidence was lowest to gather stronger signals.`;
+    return `Slight edge — Your initial ${Math.round(initialConfidence)}% confidence ${shiftDirection} by ${shiftAmount} points, landing you just above the tipping point. With ${supportingEvals.length} factors helping and ${opposingEvals.length} factors hurting across ${criteria.length} criteria, you're essentially in a coin-flip zone. The good news: you're on the right side of 50%. The reality: the margin is thin. This is a good candidate for running a small experiment before fully committing.`;
   } else if (winPercentage >= 35) {
     const concernNames = topOpposing.map(s => s.criterion?.name).filter(Boolean).join(' and ');
-    return `Mixed signals — Despite starting at ${Math.round(initialConfidence)}%, the model ${shiftDirection} your probability by ${shiftAmount} points based on the evidence provided. ${concernNames ? `${concernNames}` : 'Key criteria'} contributed notable negative weight to the posterior. The Monte Carlo simulation shows the 95% credible interval spanning both sides of 50%, indicating genuine uncertainty. The current evidence slightly favors the status quo, though the margin is small enough that additional positive evidence could shift the balance.`;
+    return `Mixed signals — We started with your ${Math.round(initialConfidence)}% estimate and ${shiftDirection} it by ${shiftAmount} points based on your evidence. ${concernNames ? `${concernNames}` : 'Some key factors'} weighed against this decision more heavily than the supporting factors could overcome. You're not far from the 50% mark, which means new positive evidence on your weakest criteria could still tip the scales—but right now, the numbers slightly favor staying put.`;
   } else if (winPercentage >= 20) {
     const concernNames = topOpposing.map(s => s.criterion?.name).filter(Boolean).join(', ');
-    return `Caution advised — The Bayesian update moved your probability from ${Math.round(initialConfidence)}% down to ${Math.round(winPercentage)}%, a ${shiftAmount}-point ${shiftDirection}. ${opposingEvals.length} of ${evaluations.length} criterion evaluations went against this decision, with ${concernNames || 'multiple factors'} contributing the strongest negative evidence. The model's importance-weighted pseudo-counts accumulated more evidence against than for, suggesting you should address these specific concerns or explore alternative approaches before proceeding.`;
+    return `Caution advised — Your probability dropped from ${Math.round(initialConfidence)}% to ${Math.round(winPercentage)}% after we factored in all your evidence. ${opposingEvals.length} of your ${evaluations.length} criteria pointed against this choice, particularly ${concernNames || 'several important factors'}. This doesn't mean the decision is impossible, but the current evidence suggests significant obstacles. Consider what would need to change to flip those negative factors before moving forward.`;
   } else {
     const concernNames = topOpposing.map(s => s.criterion?.name).filter(Boolean).join(', ');
-    return `Strong headwinds — The analysis shows a significant ${shiftAmount}-point drop from your ${Math.round(initialConfidence)}% prior to ${Math.round(winPercentage)}%. Across ${criteria.length} criteria, ${opposingEvals.length} evaluations opposed this decision, with ${concernNames || 'critical factors'} driving the largest negative updates to the Beta distribution's α and β parameters. The posterior probability mass sits firmly below the decision threshold, indicating that this path is unlikely to succeed without substantial changes to address the fundamental concerns raised by your evidence.`;
+    return `Strong headwinds — The evidence tells a clear story: your confidence fell ${shiftAmount} points from ${Math.round(initialConfidence)}% to just ${Math.round(winPercentage)}%. Across your ${criteria.length} criteria, ${opposingEvals.length} worked against this decision—especially ${concernNames || 'your most important factors'}. In almost every simulated scenario, this path struggles. This isn't a "no forever," but it's a strong signal that the current approach needs fundamental changes before it becomes viable.`;
   }
 }
 
