@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, forwardRef, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Criterion } from '@/types/decision';
@@ -14,10 +14,19 @@ interface CriteriaWizardProps {
   onBack: () => void;
 }
 
-export function CriteriaWizard({ decision, initialCriteria = [], onSubmit, onBack }: CriteriaWizardProps) {
+export const CriteriaWizard = forwardRef<HTMLDivElement, CriteriaWizardProps>(({ decision, initialCriteria = [], onSubmit, onBack }, ref) => {
+  const isMountedRef = useRef(true);
   const [criteria, setCriteria] = useState<Criterion[]>(initialCriteria);
   const [newCriterion, setNewCriterion] = useState('');
   const [isLoadingAI, setIsLoadingAI] = useState(false);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const addCriterion = () => {
     if (newCriterion.trim()) {
@@ -49,6 +58,9 @@ export function CriteriaWizard({ decision, initialCriteria = [], onSubmit, onBac
         body: { decision, existingCriteria: criteria.map(c => c.name) },
       });
 
+      // Check if component is still mounted before updating state
+      if (!isMountedRef.current) return;
+
       if (error) throw error;
 
       if (data?.suggestions && Array.isArray(data.suggestions)) {
@@ -63,10 +75,13 @@ export function CriteriaWizard({ decision, initialCriteria = [], onSubmit, onBac
         toast.success(`Added ${newCriteria.length} AI-suggested criteria`);
       }
     } catch (error) {
+      if (!isMountedRef.current) return;
       console.error('Error fetching AI suggestions:', error);
       toast.error('Failed to get AI suggestions');
     } finally {
-      setIsLoadingAI(false);
+      if (isMountedRef.current) {
+        setIsLoadingAI(false);
+      }
     }
   };
 
@@ -84,7 +99,7 @@ export function CriteriaWizard({ decision, initialCriteria = [], onSubmit, onBac
   };
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div ref={ref} className="max-w-3xl mx-auto">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -271,4 +286,6 @@ export function CriteriaWizard({ decision, initialCriteria = [], onSubmit, onBac
       </motion.div>
     </div>
   );
-}
+});
+
+CriteriaWizard.displayName = 'CriteriaWizard';
